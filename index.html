@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>0bx0d?</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root { --red: #8b0000; --red-bright: #cc0000; --red-glow: #ff2020; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'Share Tech Mono', monospace;
+      overflow-x: hidden;
+      cursor: crosshair;
+    }
+
+    /* ── Noise overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.35;
+    }
+
+    /* ── Canvas bg ── */
+    #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── Glitch text ── */
+    .glitch {
+      position: relative;
+      display: inline-block;
+      font-family: 'Orbitron', sans-serif;
+    }
+    .glitch::before, .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      background: transparent;
+    }
+    .glitch::before {
+      color: var(--red-glow);
+      clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+      animation: glitch-top 3s infinite;
+    }
+    .glitch::after {
+      color: #fff;
+      clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+      animation: glitch-bot 3s infinite;
+    }
+    @keyframes glitch-top {
+      0%,85%    { transform: none; opacity: 0; }
+      86%       { transform: translate(-3px, -2px); opacity: 0.8; }
+      88%       { transform: translate(3px, 2px); opacity: 0.8; }
+      90%       { transform: translate(-2px, 1px); opacity: 0.8; }
+      92%,100%  { transform: none; opacity: 0; }
+    }
+    @keyframes glitch-bot {
+      0%,88%    { transform: none; opacity: 0; }
+      89%       { transform: translate(4px, 2px); opacity: 0.8; }
+      91%       { transform: translate(-3px, -1px); opacity: 0.8; }
+      93%,100%  { transform: none; opacity: 0; }
+    }
+
+    /* ── Hover glitch on headings ── */
+    .hover-glitch { transition: text-shadow 0.1s; }
+    .hover-glitch:hover {
+      text-shadow:
+        2px 0 var(--red-glow),
+        -2px 0 #00f0ff,
+        0 0 20px var(--red-bright);
+      animation: shake 0.2s;
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%     { transform: translateX(-4px); }
+      75%     { transform: translateX(4px); }
+    }
+
+    /* ── Buttons ── */
+    .btn-eat {
+      background: var(--red);
+      border: 2px solid var(--red-bright);
+      color: #fff;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      letter-spacing: 4px;
+      font-size: 1.25rem;
+      padding: 18px 56px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    }
+    .btn-eat::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.4s;
+    }
+    .btn-eat:hover::before { transform: translateX(100%); }
+    .btn-eat:hover {
+      background: var(--red-bright);
+      box-shadow: 0 0 30px var(--red-glow), 0 0 60px rgba(139,0,0,0.5);
+      transform: scale(1.04);
+    }
+    .btn-eat:active { transform: scale(0.97); }
+
+    .btn-look {
+      background: transparent;
+      border: 2px solid rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.7);
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      letter-spacing: 4px;
+      font-size: 1rem;
+      padding: 18px 48px;
+      transition: all 0.25s;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    }
+    .btn-look:hover {
+      border-color: var(--red-bright);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(139,0,0,0.4);
+      transform: scale(1.03);
+    }
+
+    /* ── Scanlines ── */
+    .scanlines::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+    }
+
+    /* ── Stat cards ── */
+    .stat-card {
+      border: 1px solid rgba(139,0,0,0.4);
+      background: rgba(139,0,0,0.06);
+      padding: 32px 24px;
+      position: relative;
+      transition: all 0.3s;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 40px; height: 2px;
+      background: var(--red-bright);
+    }
+    .stat-card:hover {
+      border-color: var(--red-bright);
+      background: rgba(139,0,0,0.12);
+      box-shadow: 0 0 30px rgba(139,0,0,0.2);
+      transform: translateY(-4px);
+    }
+
+    /* ── Step number ── */
+    .step-num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 4rem;
+      font-weight: 900;
+      color: rgba(139,0,0,0.15);
+      line-height: 1;
+      position: absolute;
+      top: -10px;
+      right: 16px;
+    }
+
+    /* ── Red line divider ── */
+    .red-line {
+      width: 60px;
+      height: 2px;
+      background: var(--red-bright);
+      margin: 12px 0;
+    }
+
+    /* ── Scroll reveal ── */
+    .reveal { opacity: 0; transform: translateY(30px); transition: all 0.7s cubic-bezier(.16,1,.3,1); }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Eye blink ── */
+    @keyframes eyeblink {
+      0%,90%,100% { transform: scaleY(1); }
+      95%         { transform: scaleY(0.05); }
+    }
+
+    /* ── Drip ── */
+    @keyframes drip {
+      0%   { transform: translateY(-20px); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.7; }
+      100% { transform: translateY(120px); opacity: 0; }
+    }
+
+    /* ── Pulse badge ── */
+    @keyframes pulse-red {
+      0%,100% { box-shadow: 0 0 0 0 rgba(204,0,0,0.5); }
+      50%     { box-shadow: 0 0 0 10px rgba(204,0,0,0); }
+    }
+    .pulse-red { animation: pulse-red 2s infinite; }
+
+    /* ── Terminal cursor ── */
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+    .cursor::after { content: '█'; animation: blink 1s infinite; color: var(--red-bright); }
+
+    /* ── Footer hr ── */
+    hr.red { border: none; border-top: 1px solid rgba(139,0,0,0.3); }
+
+    /* ── Manga halftone ── */
+    .halftone {
+      background-image: radial-gradient(circle, rgba(139,0,0,0.12) 1px, transparent 1px);
+      background-size: 12px 12px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Canvas background: animated eyes + threads -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- ═══════════════════ NAV ═══════════════════ -->
+<nav class="relative z-10 flex items-center justify-between px-8 py-5 border-b border-red-900/30">
+  <span class="font-['Orbitron'] font-black text-lg tracking-widest text-white">
+    0bx<span class="text-red-700">0</span>d<span class="text-red-500">?</span>
+  </span>
+  <div class="flex gap-8 text-sm text-zinc-500 tracking-widest">
+    <a href="#why"    class="hover:text-red-500 transition-colors">WHY</a>
+    <a href="#how"    class="hover:text-red-500 transition-colors">HOW</a>
+    <a href="https://github.com/solevoyq/0bx0d" target="_blank" class="hover:text-white transition-colors">GITHUB</a>
+  </div>
+</nav>
+
+<!-- ═══════════════════ HERO ═══════════════════ -->
+<section class="relative z-10 min-h-screen flex flex-col items-center justify-center text-center px-4 scanlines">
+
+  <!-- Manga halftone corner deco -->
+  <div class="absolute top-0 left-0 w-64 h-64 halftone opacity-40 pointer-events-none"></div>
+  <div class="absolute bottom-0 right-0 w-64 h-64 halftone opacity-40 pointer-events-none"></div>
+
+  <!-- Tag -->
+  <div class="pulse-red inline-flex items-center gap-2 border border-red-800 bg-red-950/30 px-4 py-1.5 mb-10 text-xs tracking-[0.3em] text-red-400">
+    <span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>
+    v1.0 — OPEN SOURCE — WINDOWS
+  </div>
+
+  <!-- Title glitch -->
+  <h1 class="glitch text-[clamp(4rem,14vw,9rem)] font-black tracking-tight leading-none mb-4 select-none"
+      data-text="0bx0d?">
+    0bx0d?
+  </h1>
+
+  <p class="text-zinc-400 text-base md:text-lg max-w-xl mx-auto mt-6 mb-12 leading-relaxed tracking-wide">
+    DPI bypass для Discord. Голос. Без VPN. Без нервів.<br/>
+    <span class="text-red-700">Або просто — отключись от реальности.</span>
+  </p>
+
+  <!-- CTA buttons -->
+  <div class="flex flex-col sm:flex-row gap-4 items-center">
+    <a href="https://github.com/solevoyq/0bx0d/releases/latest/download/0bx0d.zip"
+       class="btn-eat cursor-pointer">
+      EAT &nbsp;—&nbsp; .EXE
+    </a>
+    <a href="https://github.com/solevoyq/0bx0d"
+       target="_blank"
+       class="btn-look cursor-pointer">
+      LOOK &nbsp;—&nbsp; SOURCE
+    </a>
+  </div>
+
+  <!-- Scroll hint -->
+  <div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-zinc-700 text-xs tracking-widest">
+    <span>SCROLL</span>
+    <div class="w-px h-10 bg-gradient-to-b from-red-800 to-transparent"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ WHY ═══════════════════ -->
+<section id="why" class="relative z-10 py-28 px-6 max-w-5xl mx-auto">
+
+  <div class="reveal">
+    <p class="text-red-700 text-xs tracking-[0.4em] mb-3">// ПРИЧИНА</p>
+    <h2 class="hover-glitch font-['Orbitron'] text-4xl md:text-5xl font-black mb-16">
+      WHY <span class="text-red-700">0bx0d?</span>
+    </h2>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <div class="stat-card reveal">
+      <div class="step-num">01</div>
+      <p class="text-red-500 text-xs tracking-widest mb-2">PACKET LOSS</p>
+      <p class="font-['Orbitron'] font-black text-5xl text-white mb-1">0<span class="text-red-700">%</span></p>
+      <div class="red-line"></div>
+      <p class="text-zinc-400 text-sm leading-relaxed">Фрагментація пакетів без втрати швидкості. Провайдер сліпий.</p>
+    </div>
+
+    <div class="stat-card reveal" style="transition-delay:0.1s">
+      <div class="step-num">02</div>
+      <p class="text-red-500 text-xs tracking-widest mb-2">VOICE / RTC</p>
+      <p class="font-['Orbitron'] font-black text-5xl text-white mb-1">UDP<span class="text-red-700">+</span></p>
+      <div class="red-line"></div>
+      <p class="text-zinc-400 text-sm leading-relaxed">Discord Voice працює. UDP 50000-65535 обробляється окремо.</p>
+    </div>
+
+    <div class="stat-card reveal" style="transition-delay:0.2s">
+      <div class="step-num">03</div>
+      <p class="text-red-500 text-xs tracking-widest mb-2">SOURCE CODE</p>
+      <p class="font-['Orbitron'] font-black text-5xl text-white mb-1">100<span class="text-red-700">%</span></p>
+      <div class="red-line"></div>
+      <p class="text-zinc-400 text-sm leading-relaxed">Відкритий код. Нічого прихованого. Бери і розбирай.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════ HOW ═══════════════════ -->
+<section id="how" class="relative z-10 py-28 px-6 max-w-5xl mx-auto">
+
+  <div class="reveal">
+    <p class="text-red-700 text-xs tracking-[0.4em] mb-3">// ІНСТРУКЦІЯ</p>
+    <h2 class="hover-glitch font-['Orbitron'] text-4xl md:text-5xl font-black mb-16">
+      HOW TO <span class="text-red-700">USE</span>
+    </h2>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+    <div class="reveal relative pl-6 border-l border-red-900/50">
+      <p class="text-red-700 font-['Orbitron'] text-xs tracking-widest mb-2">STEP 01</p>
+      <h3 class="font-['Orbitron'] text-xl font-black mb-3">DOWNLOAD</h3>
+      <p class="text-zinc-400 text-sm leading-relaxed">
+        Натисни <span class="text-red-400 font-bold">EAT</span>. Отримаєш ZIP з <code class="text-red-300">0bx0d.exe</code> та всіма бібліотеками всередині.
+      </p>
+    </div>
+
+    <div class="reveal relative pl-6 border-l border-red-900/50" style="transition-delay:0.12s">
+      <p class="text-red-700 font-['Orbitron'] text-xs tracking-widest mb-2">STEP 02</p>
+      <h3 class="font-['Orbitron'] text-xl font-black mb-3">RUN AS ADMIN</h3>
+      <p class="text-zinc-400 text-sm leading-relaxed">
+        ПКМ → «Запустити від імені адміністратора». Драйвер WinDivert потребує прав.
+      </p>
+    </div>
+
+    <div class="reveal relative pl-6 border-l border-red-900/50" style="transition-delay:0.24s">
+      <p class="text-red-700 font-['Orbitron'] text-xs tracking-widest mb-2">STEP 03</p>
+      <h3 class="font-['Orbitron'] text-xl font-black mb-3">DISCONNECT<br/>FROM REALITY</h3>
+      <p class="text-zinc-400 text-sm leading-relaxed">
+        Натисни <span class="text-red-400 font-bold">ACTIVATE</span>. Discord живий. Провайдер мертвий.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════ TERMINAL DEMO ═══════════════════ -->
+<section class="relative z-10 py-16 px-6 max-w-3xl mx-auto reveal">
+  <div class="border border-red-900/50 bg-black/80 p-6 font-mono text-sm leading-7">
+    <div class="flex items-center gap-2 mb-4 pb-3 border-b border-red-900/30">
+      <span class="w-3 h-3 rounded-full bg-red-800"></span>
+      <span class="w-3 h-3 rounded-full bg-yellow-900"></span>
+      <span class="w-3 h-3 rounded-full bg-zinc-800"></span>
+      <span class="ml-3 text-zinc-600 text-xs tracking-widest">0bx0d.exe</span>
+    </div>
+    <p><span class="text-red-700">[00:00:01]</span> <span class="text-zinc-300">Checking admin privileges...</span> <span class="text-green-600">OK</span></p>
+    <p><span class="text-red-700">[00:00:01]</span> <span class="text-zinc-300">WinDivert driver:</span> <span class="text-green-600">loaded</span></p>
+    <p><span class="text-red-700">[00:00:02]</span> <span class="text-zinc-300">Discord servers:</span> <span class="text-green-600">reachable</span></p>
+    <p><span class="text-red-700">[00:00:02]</span> <span class="text-zinc-300">GoodbyeDPI → mode: discord | preset: default</span></p>
+    <p><span class="text-red-700">[00:00:02]</span> <span class="text-red-500 font-bold">ACTIVATED.</span> <span class="text-zinc-400">enjoy your freedom.</span></p>
+    <p class="cursor text-zinc-600 mt-1">&gt;</p>
+  </div>
+</section>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<footer class="relative z-10 py-10 px-6 text-center">
+  <hr class="red mb-8 max-w-xs mx-auto"/>
+  <p class="font-['Orbitron'] text-xs tracking-widest text-zinc-600 mb-2">
+    0bx<span class="text-red-900">0</span>d<span class="text-red-900">?</span>
+  </p>
+  <p class="text-zinc-700 text-xs">
+    by <a href="https://github.com/solevoyq" class="text-red-900 hover:text-red-600 transition-colors">solevoyq</a>
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; не VPN
+  </p>
+</footer>
+
+<!-- ═══════════════════ CANVAS SCRIPT ═══════════════════ -->
+<script>
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // ── Ghoul eyes ──
+  const eyes = Array.from({length: 6}, () => ({
+    x: Math.random() * window.innerWidth,
+    y: Math.random() * window.innerHeight,
+    size: 20 + Math.random() * 40,
+    alpha: 0.02 + Math.random() * 0.06,
+    blinkT: Math.random() * Math.PI * 2,
+    speed: 0.003 + Math.random() * 0.005,
+    driftX: (Math.random() - 0.5) * 0.2,
+    driftY: (Math.random() - 0.5) * 0.1,
+  }));
+
+  // ── Threads / drips ──
+  const threads = Array.from({length: 12}, () => ({
+    x: Math.random() * window.innerWidth,
+    y: -50 - Math.random() * 400,
+    speed: 0.3 + Math.random() * 0.6,
+    width: 1 + Math.random() * 1.5,
+    len: 40 + Math.random() * 100,
+    alpha: 0.04 + Math.random() * 0.08,
+  }));
+
+  let t = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    t += 0.016;
+
+    // Draw threads
+    threads.forEach(th => {
+      th.y += th.speed;
+      if (th.y > canvas.height + 150) {
+        th.y = -150;
+        th.x = Math.random() * canvas.width;
+      }
+      const grad = ctx.createLinearGradient(th.x, th.y, th.x, th.y + th.len);
+      grad.addColorStop(0, `rgba(139,0,0,0)`);
+      grad.addColorStop(0.4, `rgba(180,0,0,${th.alpha})`);
+      grad.addColorStop(1, `rgba(80,0,0,0)`);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = th.width;
+      ctx.beginPath();
+      ctx.moveTo(th.x, th.y);
+      ctx.lineTo(th.x + Math.sin(t * 0.5 + th.x) * 8, th.y + th.len);
+      ctx.stroke();
+    });
+
+    // Draw eyes
+    eyes.forEach(eye => {
+      eye.x += eye.driftX;
+      eye.y += eye.driftY;
+      if (eye.x < -60) eye.x = canvas.width + 60;
+      if (eye.x > canvas.width + 60) eye.x = -60;
+      if (eye.y < -60) eye.y = canvas.height + 60;
+      if (eye.y > canvas.height + 60) eye.y = -60;
+
+      eye.blinkT += eye.speed;
+      const blinkScale = Math.abs(Math.sin(eye.blinkT));
+      const s = eye.size;
+
+      ctx.save();
+      ctx.translate(eye.x, eye.y);
+      ctx.scale(1, blinkScale < 0.08 ? 0.05 : blinkScale);
+      ctx.globalAlpha = eye.alpha;
+
+      // Outer glow
+      const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 1.6);
+      grd.addColorStop(0, 'rgba(180,0,0,0.6)');
+      grd.addColorStop(0.5, 'rgba(100,0,0,0.2)');
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 1.6, s, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Iris
+      ctx.fillStyle = 'rgba(160,0,0,0.5)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.9, s * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupil (vertical slit)
+      ctx.fillStyle = 'rgba(0,0,0,0.9)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.18, s * 0.75, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    });
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+
+  // ── Scroll reveal ──
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+    { threshold: 0.15 }
+  );
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

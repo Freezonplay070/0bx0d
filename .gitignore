@@ -1,0 +1,6 @@
+app/__pycache__/
+app/dist/
+app/build/
+app/*.spec
+release/
+*.pyc

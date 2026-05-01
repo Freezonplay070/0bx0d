@@ -1,0 +1,27 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        u'040904B0',
+        [StringStruct(u'CompanyName',      u'solevoyq'),
+         StringStruct(u'FileDescription',  u'0bx0d? Network Bypass Utility'),
+         StringStruct(u'FileVersion',      u'1.0.0.0'),
+         StringStruct(u'InternalName',     u'0bx0d'),
+         StringStruct(u'LegalCopyright',   u'Copyright 2025 solevoyq'),
+         StringStruct(u'OriginalFilename', u'0bx0d.exe'),
+         StringStruct(u'ProductName',      u'0bx0d?'),
+         StringStruct(u'ProductVersion',   u'1.0.0.0')])
+    ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)
