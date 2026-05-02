@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.7"
+VERSION  = "3.8"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -1868,7 +1868,7 @@ class MainWindow(QMainWindow):
         vl.addWidget(c2)
 
         vl.addStretch()
-        info = QLabel(f"0bx0d? v{VERSION}  ·  GoodbyeDPI v0.2.2  ·  MIT License")
+        info = QLabel(f"0bx0d? v{VERSION}  ·  GoodbyeDPI v0.2.3rc3  ·  MIT License")
         info.setFont(ui_font(10)); info.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(info)
         scroll.setWidget(page)
@@ -1976,7 +1976,7 @@ class MainWindow(QMainWindow):
         c3 = Card(radius=10); c3l = QVBoxLayout(c3)
         c3l.setContentsMargins(20, 18, 20, 18); c3l.setSpacing(6)
         c3l.addWidget(section_label(tr("tech_details")))
-        c3l.addLayout(info_row(tr("engine"), "GoodbyeDPI v0.2.2 by ValdikSS"))
+        c3l.addLayout(info_row(tr("engine"), "GoodbyeDPI v0.2.3rc3 by ValdikSS"))
         c3l.addLayout(info_row(tr("driver"), tr("driver_val")))
         c3l.addLayout(info_row(tr("framework"), "PySide6 (Qt for Python)"))
         c3l.addLayout(info_row(tr("platform"), tr("platform_val")))
