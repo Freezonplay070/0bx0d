@@ -234,12 +234,27 @@ def tr_list(key: str) -> list[str]:
     return _STRINGS.get(key, {}).get(_current_lang, [])
 
 # -- discord domains (written to temp file for --blacklist) --
+# Full list from GoodbyeDPI-Discord + zapret-discord-youtube + official issues
 DISCORD_DOMAINS = [
     "discord.com",
     "discordapp.com",
+    "discordapp.net",
     "discord.gg",
     "discord.media",
     "discordcdn.com",
+    "discord.co",
+    "discord.dev",
+    "discord.new",
+    "discord.gift",
+    "discord.gifts",
+    "discord.design",
+    "discord.store",
+    "discord.tools",
+    "discordmerch.com",
+    "discordpartygames.com",
+    "discord-activities.com",
+    "discordactivities.com",
+    "discordsays.com",
     "cdn.discordapp.com",
     "media.discordapp.net",
     "images-ext-1.discordapp.net",
@@ -250,6 +265,8 @@ DISCORD_DOMAINS = [
     "dl.discordapp.net",
     "updates.discord.com",
     "latency.discord.media",
+    "discord-attachments-uploads-prd.storage.googleapis.com",
+    "dis.gd",
 ]
 _blacklist_path: str | None = None
 
@@ -264,45 +281,49 @@ def _ensure_blacklist_file() -> str:
     _blacklist_path = path
     return path
 
+# Presets: based on official GoodbyeDPI recommendations + community configs
+# -9 = default mode: -f 2 -e 2 --wrong-seq --wrong-chksum --reverse-frag --max-payload -q
+# For Russia: -9 + DNS redir to Yandex 77.88.8.8:1253 (official script)
+# For aggressive TSPU: add --set-ttl or --auto-ttl + --frag-by-sni
 PRESETS = {
+    "Discord (Russia — recommended)": {
+        "mode": "DISCORD",
+        "desc": "-9 + Yandex DNS (official RU config)",
+        "args": ["-9",
+                 "--dns-addr","77.88.8.8","--dns-port","1253",
+                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
+    },
+    "Discord (Russia — TTL)": {
+        "mode": "DISCORD",
+        "desc": "-9 + auto-TTL + frag-by-SNI (stronger)",
+        "args": ["-9","--auto-ttl","1-4-10","--frag-by-sni",
+                 "--dns-addr","77.88.8.8","--dns-port","1253",
+                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
+    },
+    "Discord (Russia — Aggressive)": {
+        "mode": "DISCORD",
+        "desc": "-9 + set-ttl 4 + fake packets (max bypass)",
+        "args": ["-9","--set-ttl","4","--frag-by-sni",
+                 "--fake-gen","5","--fake-resend","3",
+                 "--dns-addr","77.88.8.8","--dns-port","1253",
+                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
+    },
     "Discord (Standard)": {
         "mode": "DISCORD",
-        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
-                 "--native-frag","--reverse-frag","--max-payload","1200"],
+        "desc": "-9 default (non-Russia)",
+        "args": ["-9"],
     },
-    "Discord (Russia TSPU)": {
-        "mode": "DISCORD",
-        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
-                 "--native-frag","--reverse-frag",
-                 "--set-ttl","4","--fake-from-hex","160301000100",
-                 "--max-payload","1200",
-                 "--dns-addr","77.88.8.8","--dns-port","1253"],
-    },
-    "Discord (Russia Aggressive)": {
-        "mode": "DISCORD",
-        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
-                 "--native-frag","--reverse-frag",
-                 "--set-ttl","3","--fake-from-hex","160301000100",
-                 "--max-payload","1200",
-                 "--dns-addr","8.8.8.8","--dns-port","443"],
-    },
-    "All Traffic": {
+    "All Traffic (Russia)": {
         "mode": "ALL",
-        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
-                 "--native-frag","--reverse-frag","--max-payload","1200"],
+        "desc": "-9 + Yandex DNS (all sites)",
+        "args": ["-9",
+                 "--dns-addr","77.88.8.8","--dns-port","1253",
+                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
     },
-    "All Traffic (Russia TSPU)": {
+    "All Traffic (Standard)": {
         "mode": "ALL",
-        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
-                 "--native-frag","--reverse-frag",
-                 "--set-ttl","4","--fake-from-hex","160301000100",
-                 "--max-payload","1200",
-                 "--dns-addr","77.88.8.8","--dns-port","1253"],
-    },
-    "Stealth Stream": {
-        "mode": "ALL",
-        "args": ["-e","1","-q","--native-frag","--reverse-frag",
-                 "--max-payload","1200"],
+        "desc": "-9 default (all sites)",
+        "args": ["-9"],
     },
 }
 
@@ -1180,7 +1201,7 @@ class ToggleSwitch(QWidget):
         ty = (self.height() - th) // 2
         track = QRectF(0, ty, tw, th)
         if self._disabled:
-            p.setBrush(QColor("#1a1a22")); p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor("#15151d")); p.setPen(QPen(QColor("#252530"), 1))
         elif self._c:
             p.setBrush(QColor(ACCENT)); p.setPen(Qt.PenStyle.NoPen)
         else:
@@ -1191,7 +1212,7 @@ class ToggleSwitch(QWidget):
         thumb_x = tw - thumb_r - 4 if self._c else thumb_r + 4
         thumb_y = ty + th / 2
         if self._disabled:
-            p.setBrush(QColor("#2a2a34"))
+            p.setBrush(QColor("#222230"))
         elif self._c:
             p.setBrush(QColor(255, 255, 255))
         else:
@@ -1200,7 +1221,7 @@ class ToggleSwitch(QWidget):
 
         p.setFont(ui_font(12))
         if self._disabled:
-            p.setPen(QColor(TEXT3))
+            p.setPen(QColor("#333340"))
         elif self._hover or self._c:
             p.setPen(QColor(TEXT))
         else:
@@ -1815,8 +1836,10 @@ class MainWindow(QMainWindow):
         c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(8)
         c2l.addWidget(section_label(tr("presets_info")))
         for name, data in PRESETS.items():
-            desc = QLabel(f"{name}  →  mode: {data['mode']}")
-            desc.setFont(ui_font(11)); desc.setStyleSheet(f"color:{TEXT2};")
+            info = data.get("desc", data["mode"])
+            desc = QLabel(f"{name}\n    {info}")
+            desc.setWordWrap(True)
+            desc.setFont(ui_font(10)); desc.setStyleSheet(f"color:{TEXT2};")
             c2l.addWidget(desc)
         vl.addWidget(c2)
 
