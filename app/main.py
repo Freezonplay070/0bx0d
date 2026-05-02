@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.8"
+VERSION  = "3.9"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -324,6 +324,14 @@ PRESETS = {
         "mode": "ALL",
         "desc": "-9 default (all sites)",
         "args": ["-9"],
+    },
+    "Discord (Russia — Simple Fake)": {
+        "mode": "DISCORD",
+        "desc": "frag + wrong-chksum + DNS (if -9 fails)",
+        "args": ["-p","-r","-s","-f","2","-k","2","-n","-e","2",
+                 "--wrong-chksum",
+                 "--dns-addr","77.88.8.8","--dns-port","1253",
+                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
     },
 }
 
