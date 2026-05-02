@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.1"
+VERSION  = "3.4"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -78,11 +78,11 @@ _STRINGS = {
                            "ru": "DPI bypass с открытым кодом"},
     "preset":             {"en": "PRESET",          "ru": "ПРЕСЕТ"},
     "live_logs":          {"en": "LIVE LOGS",       "ru": "ЛОГИ"},
-    "autostart":          {"en": "Autostart",       "ru": "Авто��апуск"},
+    "autostart":          {"en": "Autostart",       "ru": "Автозапуск"},
     "kill_switch":        {"en": "Kill Switch",     "ru": "Kill Switch"},
     "auto_bypass":        {"en": "Auto-bypass",     "ru": "Авто-обход"},
     # Settings
-    "settings":           {"en": "SETTINGS",        "ru": "НА��ТРОЙКИ"},
+    "settings":           {"en": "SETTINGS",        "ru": "НАСТРОЙКИ"},
     "startup":            {"en": "STARTUP",         "ru": "ЗАПУСК"},
     "launch_on_login":    {"en": "Launch on Windows login",
                            "ru": "Запускать при входе в Windows"},
@@ -149,7 +149,7 @@ _STRINGS = {
             "Сохранение и восстановление оригинального DNS",
             "Автозапуск: запуск при входе в Windows",
             "Кастомный интерфейс без рамки с тёмной темой",
-            "Мониторинг сети (п��нг discord.com)",
+            "Мониторинг сети (пинг discord.com)",
         ],
     },
     "tech_details":       {"en": "TECHNICAL DETAILS","ru": "ТЕХНИЧЕСКИЕ ДЕТАЛИ"},
@@ -162,7 +162,7 @@ _STRINGS = {
     "driver_val":         {"en": "WinDivert (kernel-level packet interception)",
                            "ru": "WinDivert (перехват пакетов на уровне ядра)"},
     "platform_val":       {"en": "Windows 10 / 11 (x64, requires admin)",
-                           "ru": "Windows 10 / 11 (x64, нужен администра��ор)"},
+                           "ru": "Windows 10 / 11 (x64, нужен администратор)"},
     "dns_check_val":      {"en": "Raw UDP query to google.com (port 53)",
                            "ru": "Прямой UDP запрос к google.com (порт 53)"},
     "license_val":        {"en": "MIT — free and open source",
@@ -172,7 +172,7 @@ _STRINGS = {
     # License dialog
     "activation":         {"en": "Activation",       "ru": "Активация"},
     "enter_key":          {"en": "Enter your license key to continue",
-                           "ru": "Введите л��цензионный ключ для продолжения"},
+                           "ru": "Введите лицензионный ключ для продолжения"},
     "activate_btn":       {"en": "Activate",         "ru": "Активировать"},
     "validating":         {"en": "Validating...",     "ru": "Проверка..."},
     # Startup messages
@@ -180,9 +180,9 @@ _STRINGS = {
                            "ru": "Запуск: {name}? v{ver} загрузка..."},
     "admin_ok":           {"en": "✓ admin: OK",       "ru": "✓ админ: ОК"},
     "admin_miss":         {"en": "✗ admin: MISSING — restart as admin",
-                           "ru": "��� админ: НЕТ — перезапустите от админа"},
+                           "ru": "✗ админ: НЕТ — перезапустите от админа"},
     "missing_file":       {"en": "✗ missing: {f}",    "ru": "✗ не найден: {f}"},
-    "driver_ok":          {"en": "�� driver files: OK", "ru": "✓ файлы драйвера: ОК"},
+    "driver_ok":          {"en": "✓ driver files: OK", "ru": "✓ файлы драйвера: ОК"},
     "net_reachable":      {"en": "Network: discord.com → reachable",
                            "ru": "Сеть: discord.com → доступен"},
     "net_blocked":        {"en": "ERROR: Discord RTC blocked.",
@@ -219,8 +219,21 @@ def tr_list(key: str) -> list[str]:
 
 # -- discord domains (written to temp file for --blacklist) --
 DISCORD_DOMAINS = [
-    "discord.com", "discordapp.com", "discord.gg",
-    "discord.media", "discordcdn.com",
+    "discord.com",
+    "discordapp.com",
+    "discord.gg",
+    "discord.media",
+    "discordcdn.com",
+    "cdn.discordapp.com",
+    "media.discordapp.net",
+    "images-ext-1.discordapp.net",
+    "images-ext-2.discordapp.net",
+    "gateway.discord.gg",
+    "router.discord.com",
+    "status.discord.com",
+    "dl.discordapp.net",
+    "updates.discord.com",
+    "latency.discord.media",
 ]
 _blacklist_path: str | None = None
 
@@ -236,25 +249,44 @@ def _ensure_blacklist_file() -> str:
     return path
 
 PRESETS = {
-    "Discord + Game (UDP)": {
+    "Discord (Standard)": {
         "mode": "DISCORD",
-        "args": ["-k","2","-e","2","-f","1","--wrong-chksum","--wrong-seq",
+        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
                  "--native-frag","--reverse-frag","--max-payload","1200"],
     },
-    "Discord Only": {
+    "Discord (Russia TSPU)": {
         "mode": "DISCORD",
-        "args": ["-k","2","-e","2","-f","1","--wrong-chksum",
-                 "--native-frag","--reverse-frag","--max-payload","1200"],
+        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
+                 "--native-frag","--reverse-frag",
+                 "--set-ttl","4","--fake-from-hex","160301000100",
+                 "--max-payload","1200",
+                 "--dns-addr","77.88.8.8","--dns-port","1253"],
+    },
+    "Discord (Russia Aggressive)": {
+        "mode": "DISCORD",
+        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
+                 "--native-frag","--reverse-frag",
+                 "--set-ttl","3","--fake-from-hex","160301000100",
+                 "--max-payload","1200",
+                 "--dns-addr","8.8.8.8","--dns-port","443"],
     },
     "All Traffic": {
         "mode": "ALL",
-        "args": ["-k","2","-e","2","-f","2","--wrong-chksum","--wrong-seq",
+        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
                  "--native-frag","--reverse-frag","--max-payload","1200"],
+    },
+    "All Traffic (Russia TSPU)": {
+        "mode": "ALL",
+        "args": ["-e","1","-q","--wrong-chksum","--wrong-seq",
+                 "--native-frag","--reverse-frag",
+                 "--set-ttl","4","--fake-from-hex","160301000100",
+                 "--max-payload","1200",
+                 "--dns-addr","77.88.8.8","--dns-port","1253"],
     },
     "Stealth Stream": {
         "mode": "ALL",
-        "args": ["-k","2","-e","2","-f","2",
-                 "--native-frag","--reverse-frag","--max-payload","1200"],
+        "args": ["-e","1","-q","--native-frag","--reverse-frag",
+                 "--max-payload","1200"],
     },
 }
 
