@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """0bx0d? -- DPI bypass tool v3.1"""
-import ctypes, math, os, random, socket, struct, subprocess, sys, tempfile, time, winreg
+import ctypes, hashlib, json, math, os, random, socket, struct, subprocess, sys
+import tempfile, time, winreg
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -98,6 +100,114 @@ DNS_SERVERS = {
     "OpenDNS":    ("208.67.222.222", "208.67.220.220"),
     "Yandex":     ("77.88.8.8",      "77.88.8.1"),
 }
+
+# =====================================================================
+#  LICENSE SYSTEM
+# =====================================================================
+# -- PASTE YOUR FIREBASE DATABASE URL BELOW --
+FIREBASE_DB_URL  = "https://PASTE_YOUR_PROJECT-default-rtdb.firebaseio.com"
+LICENSE_REG_KEY  = r"Software\0bx0d\License"
+OFFLINE_GRACE    = 7 * 86400  # 7 days offline grace period
+
+def _key_hash(key: str) -> str:
+    return hashlib.sha256(key.strip().upper().encode()).hexdigest()
+
+def _validate_online(key: str) -> dict | None:
+    """Check key against Firebase. Returns key data or None on error."""
+    try:
+        h = _key_hash(key)
+        url = f"{FIREBASE_DB_URL}/keys/{h}.json"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read())
+        return data  # None if key not found, dict if found
+    except Exception:
+        return None
+
+def _save_license(key: str, expires: int):
+    try:
+        k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, LICENSE_REG_KEY)
+        winreg.SetValueEx(k, "Key", 0, winreg.REG_SZ, key.strip().upper())
+        winreg.SetValueEx(k, "Validated", 0, winreg.REG_SZ, str(int(time.time())))
+        winreg.SetValueEx(k, "Expires", 0, winreg.REG_SZ, str(expires))
+        winreg.CloseKey(k)
+    except Exception:
+        pass
+
+def _load_license() -> tuple[str, int, int] | None:
+    """Returns (key, last_validated, expires) or None."""
+    try:
+        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, LICENSE_REG_KEY, 0, winreg.KEY_READ)
+        key = winreg.QueryValueEx(k, "Key")[0]
+        val = int(winreg.QueryValueEx(k, "Validated")[0])
+        exp = int(winreg.QueryValueEx(k, "Expires")[0])
+        winreg.CloseKey(k)
+        return (key, val, exp)
+    except Exception:
+        return None
+
+def _clear_license():
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, LICENSE_REG_KEY)
+    except Exception:
+        pass
+
+def check_license() -> tuple[bool, str]:
+    """Returns (valid, message)."""
+    saved = _load_license()
+    if not saved:
+        return False, "No license key found"
+
+    key, last_val, expires = saved
+    now = int(time.time())
+
+    # Try online validation
+    data = _validate_online(key)
+    if data is not None:
+        # Key found in database
+        if not data.get("active", False):
+            _clear_license()
+            return False, "License has been revoked"
+        exp = data.get("expires", 0)
+        if exp > 0 and exp < now:
+            _clear_license()
+            return False, "License has expired"
+        _save_license(key, exp)
+        return True, "License valid"
+    elif data is None and saved:
+        # Could be network error OR key not in database
+        # Check if key was previously validated (offline grace)
+        if now - last_val > OFFLINE_GRACE:
+            return False, "Offline validation expired (7 days)"
+        if expires > 0 and expires < now:
+            _clear_license()
+            return False, "License has expired"
+        return True, "License valid (offline)"
+
+    return False, "Invalid license key"
+
+def activate_key(key: str) -> tuple[bool, str]:
+    """Validate a new key and save if valid. Returns (success, message)."""
+    key = key.strip().upper()
+    if not key:
+        return False, "Enter a license key"
+
+    data = _validate_online(key)
+    if data is None:
+        return False, "Key not found or network error"
+    if not data.get("active", False):
+        return False, "This key has been revoked"
+    now = int(time.time())
+    exp = data.get("expires", 0)
+    if exp > 0 and exp < now:
+        return False, "This key has expired"
+
+    _save_license(key, exp)
+    plan = data.get("plan", "?")
+    if exp == 0:
+        return True, f"Activated! Plan: lifetime"
+    days_left = max(1, (exp - now) // 86400)
+    return True, f"Activated! Plan: {plan} ({days_left}d left)"
 
 # =====================================================================
 #  FONTS
@@ -1035,6 +1145,118 @@ QToolTip {{
 """
 
 # =====================================================================
+#  LICENSE DIALOG
+# =====================================================================
+class LicenseDialog(QMainWindow):
+    """Activation window shown when no valid license is found."""
+    activated = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setFixedSize(460, 340)
+        self.setWindowTitle("0bx0d? — Activation")
+        self._success = False
+        self._drag = QPoint()
+        self._setup_ui()
+
+    def _setup_ui(self):
+        root = BgFrame(); self.setCentralWidget(root)
+        vl = QVBoxLayout(root); vl.setContentsMargins(0, 0, 0, 0); vl.setSpacing(0)
+
+        # Title bar
+        tbar = QWidget(); tbar.setFixedHeight(40)
+        tbar.setStyleSheet(f"background:{SURFACE};")
+        tl = QHBoxLayout(tbar); tl.setContentsMargins(16, 0, 8, 0)
+        t = QLabel("0bx0d?"); t.setFont(title_font(14))
+        t.setStyleSheet(f"color:{TEXT};"); tl.addWidget(t)
+        tl.addStretch()
+        close_btn = QPushButton("✕"); close_btn.setFixedSize(28, 28)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{TEXT3};border:none;"
+            "font-size:13px;border-radius:4px;}"
+            f"QPushButton:hover{{background:{BORDER};color:{TEXT};}}")
+        close_btn.clicked.connect(self.close)
+        tl.addWidget(close_btn)
+        vl.addWidget(tbar)
+        vl.addWidget(hdiv())
+
+        # Content
+        content = QWidget()
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(36, 28, 36, 28); cl.setSpacing(16)
+
+        title = QLabel("Activation")
+        title.setFont(ui_font(22, bold=True))
+        title.setStyleSheet(f"color:{TEXT};")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cl.addWidget(title)
+
+        hint = QLabel("Enter your license key to continue")
+        hint.setFont(ui_font(12)); hint.setStyleSheet(f"color:{TEXT3};")
+        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cl.addWidget(hint)
+
+        cl.addSpacing(4)
+
+        from PySide6.QtWidgets import QLineEdit
+        self._input = QLineEdit()
+        self._input.setPlaceholderText("0BX0D-XXXXX-XXXXX-XXXXX-XXXXX")
+        self._input.setFont(mono_font(14))
+        self._input.setFixedHeight(44)
+        self._input.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {CARD}; color: {TEXT}; border: 1px solid {BORDER};
+                border-radius: 8px; padding: 0 16px;
+                selection-background-color: {ACCENT};
+            }}
+            QLineEdit:focus {{ border-color: {ACCENT}; }}
+        """)
+        self._input.returnPressed.connect(self._do_activate)
+        cl.addWidget(self._input)
+
+        self._act_btn = Btn("Activate", accent=True)
+        self._act_btn.setFixedHeight(42)
+        self._act_btn.clicked.connect(self._do_activate)
+        cl.addWidget(self._act_btn)
+
+        self._status = QLabel("")
+        self._status.setFont(ui_font(11))
+        self._status.setStyleSheet(f"color:{TEXT3};")
+        self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status.setWordWrap(True)
+        cl.addWidget(self._status)
+
+        cl.addStretch()
+        vl.addWidget(content)
+
+    def _do_activate(self):
+        key = self._input.text().strip()
+        self._status.setText("Validating...")
+        self._status.setStyleSheet(f"color:{TEXT2};")
+        QApplication.processEvents()
+
+        ok, msg = activate_key(key)
+        if ok:
+            self._status.setText(msg)
+            self._status.setStyleSheet(f"color:{GREEN};")
+            self._success = True
+            QTimer.singleShot(800, self.close)
+        else:
+            self._status.setText(msg)
+            self._status.setStyleSheet(f"color:{ACCENT2};")
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._drag = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, e):
+        if e.buttons() == Qt.MouseButton.LeftButton and not self._drag.isNull():
+            self.move(e.globalPosition().toPoint() - self._drag)
+
+# =====================================================================
 #  MAIN WINDOW
 # =====================================================================
 class MainWindow(QMainWindow):
@@ -1448,10 +1670,8 @@ class MainWindow(QMainWindow):
 # =====================================================================
 #  ENTRY
 # =====================================================================
-def main():
-    if sys.platform == "win32" and not is_admin():
-        relaunch_admin()
-
+def _setup_app():
+    """Create and configure QApplication."""
     app = QApplication(sys.argv)
     app.setStyle("Fusion"); app.setApplicationName("0bx0d?")
     app.setStyleSheet(QSS)
@@ -1470,7 +1690,25 @@ def main():
     pal.setColor(QPalette.ColorRole.HighlightedText, QColor(TEXT))
     pal.setColor(QPalette.ColorRole.Link,            QColor(ACCENT))
     app.setPalette(pal)
+    return app
 
+
+def main():
+    if sys.platform == "win32" and not is_admin():
+        relaunch_admin()
+
+    app = _setup_app()
+
+    # -- License check --
+    valid, msg = check_license()
+    if not valid:
+        dlg = LicenseDialog()
+        dlg.show()
+        app.exec()
+        if not dlg._success:
+            sys.exit(0)
+
+    # -- Main app --
     win = MainWindow(); win.show()
     sys.exit(app.exec())
 

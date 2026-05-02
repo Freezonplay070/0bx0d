@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0bx0d? — Admin Panel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0e0e12;--surface:#141419;--card:#1a1a22;--border:#252530;
+  --accent:#e53935;--accent2:#ff5252;--green:#4caf50;--yellow:#ffc107;
+  --orange:#ff6d00;--text:#e0e0e6;--text2:#8e8ea0;--text3:#4a4a5a;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
+
+/* Login */
+.login{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:48px 56px;text-align:center;max-width:400px;width:90%}
+.login-card h1{font-size:32px;font-family:'Cascadia Code','Consolas',monospace;color:var(--accent);margin-bottom:6px}
+.login-card .sub{color:var(--text3);font-size:14px;margin-bottom:32px}
+.login-card .denied{color:var(--accent2);font-size:13px;margin-top:16px;display:none}
+
+.btn-google{
+  background:#fff;color:#333;border:none;padding:12px 28px;border-radius:8px;
+  font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:10px;
+  transition:all .2s;
+}
+.btn-google:hover{background:#f0f0f0;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.btn-google svg{width:20px;height:20px}
+
+/* Header */
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:14px 28px;display:flex;align-items:center;justify-content:space-between;
+}
+header h2{font-size:18px;font-family:'Cascadia Code','Consolas',monospace}
+header h2 .dim{color:var(--text3);font-weight:400;font-size:14px;margin-left:8px}
+header .right{display:flex;align-items:center;gap:14px}
+header .email{color:var(--text3);font-size:12px}
+
+/* Main */
+.container{max-width:1100px;margin:0 auto;padding:24px 28px}
+
+/* Stats */
+.stats{display:flex;gap:12px;margin-bottom:20px}
+.stat{
+  flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:16px 20px;text-align:center;
+}
+.stat .num{display:block;font-size:28px;font-weight:700;margin-bottom:2px}
+.stat .label{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:2px}
+.stat.active .num{color:var(--green)}
+.stat.expired .num{color:var(--yellow)}
+.stat.revoked .num{color:var(--accent)}
+
+/* Card */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:16px}
+.card h3{color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;font-weight:600}
+
+/* Generator */
+.gen-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.gen-row select,.gen-row input{
+  background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;
+  padding:10px 14px;font-size:13px;font-family:inherit;outline:none;
+}
+.gen-row select{min-width:140px}
+.gen-row select:focus,.gen-row input:focus{border-color:var(--accent)}
+.gen-row input{flex:1;min-width:180px}
+.gen-row select option{background:var(--card);color:var(--text)}
+
+/* Buttons */
+.btn{
+  border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .15s;font-family:inherit;
+}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-accent:hover{background:var(--accent2);transform:translateY(-1px)}
+.btn-sm{
+  border:1px solid var(--border);background:transparent;color:var(--text2);
+  padding:6px 14px;border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit;
+  transition:all .15s;
+}
+.btn-sm:hover{border-color:var(--text3);color:var(--text)}
+.btn-warn{border-color:var(--yellow);color:var(--yellow)}
+.btn-warn:hover{background:rgba(255,193,7,.1);color:var(--yellow)}
+.btn-danger{border-color:var(--accent);color:var(--accent)}
+.btn-danger:hover{background:rgba(229,57,53,.1);color:var(--accent2)}
+
+/* Key display */
+.key-display{border-color:var(--green);background:rgba(76,175,80,.05)}
+.key-display .warn{color:var(--yellow);font-size:12px;margin-bottom:10px;font-weight:600}
+.key-box{
+  display:flex;align-items:center;gap:12px;background:var(--bg);
+  border:1px solid var(--border);border-radius:8px;padding:14px 18px;
+}
+.key-box code{font-size:16px;font-family:'Cascadia Code','Consolas',monospace;color:var(--green);flex:1;letter-spacing:1px}
+.copy-ok{color:var(--green);font-size:12px;margin-left:8px;opacity:0;transition:opacity .3s}
+.copy-ok.show{opacity:1}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{border-bottom:1px solid var(--border)}
+th{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;padding:10px 12px;text-align:left}
+td{padding:10px 12px;border-bottom:1px solid rgba(37,37,48,.5);vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,.02)}
+td code{color:var(--text3);font-size:12px;font-family:'Cascadia Code','Consolas',monospace}
+td .actions{display:flex;gap:6px}
+.badge{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.badge-active{background:rgba(76,175,80,.15);color:var(--green)}
+.badge-expired{background:rgba(255,193,7,.12);color:var(--yellow)}
+.badge-revoked{background:rgba(229,57,53,.12);color:var(--accent)}
+
+/* Empty state */
+.empty{text-align:center;padding:40px;color:var(--text3)}
+.empty p{font-size:14px}
+
+/* Responsive */
+@media(max-width:768px){
+  .stats{flex-direction:column}
+  .gen-row{flex-direction:column}
+  .gen-row select,.gen-row input{width:100%}
+  table{font-size:12px}
+  th,td{padding:8px 6px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="login-screen" class="login">
+  <div class="login-card">
+    <h1>0bx0d?</h1>
+    <p class="sub">License Admin Panel</p>
+    <button class="btn-google" onclick="doSignIn()">
+      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Sign in with Google
+    </button>
+    <p id="denied-msg" class="denied">Access denied. Only the admin account is allowed.</p>
+  </div>
+</div>
+
+<!-- ============ ADMIN PANEL ============ -->
+<div id="panel" style="display:none">
+  <header>
+    <h2>0bx0d? <span class="dim">admin</span></h2>
+    <div class="right">
+      <span class="email" id="user-email"></span>
+      <button class="btn-sm" onclick="doSignOut()">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat"><span class="num" id="s-total">0</span><span class="label">Total Keys</span></div>
+      <div class="stat active"><span class="num" id="s-active">0</span><span class="label">Active</span></div>
+      <div class="stat expired"><span class="num" id="s-expired">0</span><span class="label">Expired</span></div>
+      <div class="stat revoked"><span class="num" id="s-revoked">0</span><span class="label">Revoked</span></div>
+    </div>
+
+    <!-- Generator -->
+    <div class="card">
+      <h3>Generate New Key</h3>
+      <div class="gen-row">
+        <select id="gen-plan">
+          <option value="1d">1 Day</option>
+          <option value="1w">1 Week</option>
+          <option value="1m" selected>1 Month</option>
+          <option value="3m">3 Months</option>
+          <option value="6m">6 Months</option>
+          <option value="1y">1 Year</option>
+          <option value="2y">2 Years</option>
+          <option value="lifetime">Lifetime</option>
+        </select>
+        <input id="gen-note" type="text" placeholder="Client note (optional)">
+        <button class="btn btn-accent" onclick="genKey()">Generate</button>
+      </div>
+    </div>
+
+    <!-- New key display (hidden by default) -->
+    <div id="new-key-card" class="card key-display" style="display:none">
+      <p class="warn">Save this key now! It will NOT be shown again.</p>
+      <div class="key-box">
+        <code id="new-key-text"></code>
+        <button class="btn-sm" onclick="copyKey()">Copy</button>
+        <span class="copy-ok" id="copy-ok">Copied!</span>
+      </div>
+    </div>
+
+    <!-- Keys table -->
+    <div class="card">
+      <h3>License Keys</h3>
+      <div id="keys-empty" class="empty" style="display:none"><p>No keys yet. Generate your first key above.</p></div>
+      <table id="keys-table-wrap" style="display:none">
+        <thead><tr>
+          <th>ID</th><th>Plan</th><th>Created</th><th>Expires</th><th>Status</th><th>Note</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="keys-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ FIREBASE ============ -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script>
+// =====================================================================
+//  FIREBASE CONFIG — fill in your values from Firebase Console
+//  Console → Project Settings → General → Your apps → Web app → Config
+// =====================================================================
+const firebaseConfig = {
+  apiKey:            "PASTE_YOUR_API_KEY",
+  authDomain:        "PASTE_YOUR_PROJECT.firebaseapp.com",
+  databaseURL:       "https://PASTE_YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId:         "PASTE_YOUR_PROJECT_ID",
+  storageBucket:     "PASTE_YOUR_PROJECT.appspot.com",
+  messagingSenderId: "PASTE_YOUR_SENDER_ID",
+  appId:             "PASTE_YOUR_APP_ID"
+};
+// =====================================================================
+//  ADMIN EMAIL — only this Google account can access the panel
+// =====================================================================
+const ADMIN_EMAIL = "olegyk070@gmail.com";
+// =====================================================================
+//  FIREBASE REALTIME DATABASE RULES — set these in Firebase Console:
+//  Console → Realtime Database → Rules
+//
+//  {
+//    "rules": {
+//      "keys": {
+//        ".read": "auth != null && auth.token.email === 'olegyk070@gmail.com'",
+//        ".write": "auth != null && auth.token.email === 'olegyk070@gmail.com'",
+//        "$hash": {
+//          ".read": true
+//        }
+//      }
+//    }
+//  }
+// =====================================================================
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+// Plan durations in seconds
+const DURATIONS = {
+  '1d': 86400, '1w': 604800, '1m': 2592000, '3m': 7776000,
+  '6m': 15552000, '1y': 31536000, '2y': 63072000, 'lifetime': 0
+};
+const PLAN_LABELS = {
+  '1d':'1 Day','1w':'1 Week','1m':'1 Month','3m':'3 Months',
+  '6m':'6 Months','1y':'1 Year','2y':'2 Years','lifetime':'Lifetime'
+};
+
+// ── Auth ─────────────────────────────────────────
+auth.onAuthStateChanged(user => {
+  if (user && user.email === ADMIN_EMAIL) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+    document.getElementById('user-email').textContent = user.email;
+    document.getElementById('denied-msg').style.display = 'none';
+    loadKeys();
+  } else if (user) {
+    // Wrong account
+    auth.signOut();
+    document.getElementById('denied-msg').style.display = 'block';
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('panel').style.display = 'none';
+  }
+});
+
+function doSignIn() {
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+}
+function doSignOut() {
+  auth.signOut();
+}
+
+// ── SHA-256 ──────────────────────────────────────
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const buf  = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── Key generation ───────────────────────────────
+function randomKey() {
+  const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const parts = [];
+  for (let i = 0; i < 4; i++) {
+    let p = '';
+    for (let j = 0; j < 5; j++) p += c[Math.floor(Math.random() * c.length)];
+    parts.push(p);
+  }
+  return '0BX0D-' + parts.join('-');
+}
+
+async function genKey() {
+  const plan = document.getElementById('gen-plan').value;
+  const note = document.getElementById('gen-note').value.trim();
+  const key  = randomKey();
+  const hash = await sha256(key);
+  const now  = Math.floor(Date.now() / 1000);
+  const exp  = plan === 'lifetime' ? 0 : now + DURATIONS[plan];
+
+  await db.ref('keys/' + hash).set({
+    active:  true,
+    plan:    plan,
+    created: now,
+    expires: exp,
+    note:    note
+  });
+
+  // Show key to admin
+  document.getElementById('new-key-text').textContent = key;
+  document.getElementById('new-key-card').style.display = 'block';
+  document.getElementById('copy-ok').classList.remove('show');
+  document.getElementById('gen-note').value = '';
+  loadKeys();
+}
+
+function copyKey() {
+  const key = document.getElementById('new-key-text').textContent;
+  navigator.clipboard.writeText(key).then(() => {
+    const el = document.getElementById('copy-ok');
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2000);
+  });
+}
+
+// ── Load keys ────────────────────────────────────
+function loadKeys() {
+  db.ref('keys').once('value', snap => {
+    const data = snap.val() || {};
+    const tbody = document.getElementById('keys-body');
+    tbody.innerHTML = '';
+    const now = Math.floor(Date.now() / 1000);
+
+    let total=0, active=0, expired=0, revoked=0;
+    const entries = Object.entries(data).sort((a,b) => (b[1].created||0) - (a[1].created||0));
+
+    entries.forEach(([hash, info]) => {
+      total++;
+      const isExp = info.expires > 0 && info.expires < now;
+      let status;
+      if (!info.active) { status = 'revoked'; revoked++; }
+      else if (isExp)   { status = 'expired'; expired++; }
+      else              { status = 'active';  active++;  }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><code>${hash.slice(0,8)}</code></td>
+        <td>${PLAN_LABELS[info.plan] || info.plan}</td>
+        <td>${fmtDate(info.created)}</td>
+        <td>${info.expires === 0 ? '<span style="color:var(--green)">Never</span>' : fmtDate(info.expires)}</td>
+        <td><span class="badge badge-${status}">${status}</span></td>
+        <td>${info.note || '<span style="color:var(--text3)">—</span>'}</td>
+        <td><div class="actions">
+          ${info.active ? `<button class="btn-sm btn-warn" onclick="revokeKey('${hash}')">Revoke</button>` : ''}
+          <button class="btn-sm btn-danger" onclick="deleteKey('${hash}')">Delete</button>
+        </div></td>`;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('s-total').textContent   = total;
+    document.getElementById('s-active').textContent  = active;
+    document.getElementById('s-expired').textContent = expired;
+    document.getElementById('s-revoked').textContent = revoked;
+
+    document.getElementById('keys-empty').style.display      = total === 0 ? 'block' : 'none';
+    document.getElementById('keys-table-wrap').style.display  = total === 0 ? 'none'  : 'table';
+  });
+}
+
+function fmtDate(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString('uk-UA', {day:'2-digit',month:'short',year:'numeric'});
+}
+
+function revokeKey(hash) {
+  if (!confirm('Revoke this key? All users with it will lose access immediately.')) return;
+  db.ref('keys/' + hash + '/active').set(false).then(loadKeys);
+}
+
+function deleteKey(hash) {
+  if (!confirm('Permanently delete this key?')) return;
+  db.ref('keys/' + hash).remove().then(loadKeys);
+}
+</script>
+</body>
+</html>
