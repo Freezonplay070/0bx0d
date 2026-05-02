@@ -285,6 +285,35 @@
     </a>
   </div>
 
+  <!-- Access Key Display -->
+  <div class="mt-10 w-full max-w-xl mx-auto">
+    <div class="relative border border-red-900/60 rounded-lg bg-black/60 backdrop-blur-sm overflow-hidden">
+      <!-- scanline overlay -->
+      <div class="absolute inset-0 pointer-events-none opacity-10"
+           style="background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,.03) 2px, rgba(255,255,255,.03) 4px);"></div>
+      <!-- header -->
+      <div class="flex items-center gap-2 px-4 py-2 border-b border-red-900/40 bg-red-950/30">
+        <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+        <span class="text-[10px] tracking-[0.3em] text-red-500/80 font-['Share_Tech_Mono']">PUBLIC ACCESS KEY</span>
+      </div>
+      <!-- key body -->
+      <div class="px-4 py-5 flex flex-col items-center gap-3">
+        <div class="flex items-center gap-3">
+          <span class="text-red-700 text-xs font-['Share_Tech_Mono'] opacity-70">$&gt;</span>
+          <span id="access-key" class="text-lg sm:text-xl md:text-2xl tracking-[0.15em] font-['Share_Tech_Mono'] text-zinc-100 select-all cursor-text"
+                style="text-shadow: 0 0 8px rgba(229,57,53,.35);">0BX0D-RPVHN-AZUFY-PVRVP-P93R5</span>
+          <button onclick="navigator.clipboard.writeText('0BX0D-RPVHN-AZUFY-PVRVP-P93R5');this.textContent='✓';setTimeout(()=>this.textContent='⧉',1200)"
+                  class="text-zinc-600 hover:text-red-500 transition-colors text-sm ml-1 cursor-pointer" title="Скопіювати">⧉</button>
+        </div>
+        <div class="flex items-center gap-4 text-[11px] font-['Share_Tech_Mono'] text-zinc-500">
+          <span>VALID: <span class="text-zinc-400">02.05</span> — <span class="text-zinc-400">02.06.2026</span></span>
+          <span class="text-red-900">│</span>
+          <span>STATUS: <span class="text-green-500">ACTIVE</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scroll hint -->
   <div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-zinc-700 text-xs tracking-widest">
     <span>ЛИСТАЙ</span>

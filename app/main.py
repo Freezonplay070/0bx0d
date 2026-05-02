@@ -265,6 +265,22 @@ def get_autostart() -> bool:
         winreg.QueryValueEx(k, APP_NAME); winreg.CloseKey(k); return True
     except: return False
 
+AUTO_ACTIVATE_REG = r"Software\0bx0d\Settings"
+
+def set_auto_activate(on: bool):
+    try:
+        k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, AUTO_ACTIVATE_REG)
+        winreg.SetValueEx(k, "AutoActivate", 0, winreg.REG_SZ, "1" if on else "0")
+        winreg.CloseKey(k)
+    except: pass
+
+def get_auto_activate() -> bool:
+    try:
+        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTO_ACTIVATE_REG, 0, winreg.KEY_QUERY_VALUE)
+        v = winreg.QueryValueEx(k, "AutoActivate")[0]; winreg.CloseKey(k)
+        return v == "1"
+    except: return False
+
 # =====================================================================
 #  DNS UTILITIES
 # =====================================================================
@@ -791,15 +807,26 @@ class ToggleSwitch(QWidget):
     def __init__(self, label, checked=False, parent=None):
         super().__init__(parent)
         self._c = checked; self._label = label; self._hover = False
+        self._disabled = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(28)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
     def isChecked(self): return self._c
     def setChecked(self, v): self._c = v; self.update()
+
+    def setDisabled(self, v):
+        self._disabled = v
+        self.setCursor(Qt.CursorShape.ForbiddenCursor if v
+                       else Qt.CursorShape.PointingHandCursor)
+        if v and self._c:
+            self._c = False; self.toggled.emit(False)
+        self.update()
+
     def enterEvent(self, _): self._hover = True; self.update()
     def leaveEvent(self, _): self._hover = False; self.update()
     def mousePressEvent(self, e):
+        if self._disabled: return
         if e.button() == Qt.MouseButton.LeftButton:
             self._c = not self._c; self.update(); self.toggled.emit(self._c)
 
@@ -808,7 +835,9 @@ class ToggleSwitch(QWidget):
         tw, th = 36, 20
         ty = (self.height() - th) // 2
         track = QRectF(0, ty, tw, th)
-        if self._c:
+        if self._disabled:
+            p.setBrush(QColor("#1a1a22")); p.setPen(Qt.PenStyle.NoPen)
+        elif self._c:
             p.setBrush(QColor(ACCENT)); p.setPen(Qt.PenStyle.NoPen)
         else:
             p.setBrush(QColor(BORDER)); p.setPen(Qt.PenStyle.NoPen)
@@ -817,11 +846,21 @@ class ToggleSwitch(QWidget):
         thumb_r = (th - 6) / 2
         thumb_x = tw - thumb_r - 4 if self._c else thumb_r + 4
         thumb_y = ty + th / 2
-        p.setBrush(QColor(255, 255, 255) if self._c else QColor(TEXT3))
+        if self._disabled:
+            p.setBrush(QColor("#2a2a34"))
+        elif self._c:
+            p.setBrush(QColor(255, 255, 255))
+        else:
+            p.setBrush(QColor(TEXT3))
         p.drawEllipse(QPointF(thumb_x, thumb_y), thumb_r, thumb_r)
 
         p.setFont(ui_font(12))
-        p.setPen(QColor(TEXT) if (self._hover or self._c) else QColor(TEXT2))
+        if self._disabled:
+            p.setPen(QColor(TEXT3))
+        elif self._hover or self._c:
+            p.setPen(QColor(TEXT))
+        else:
+            p.setPen(QColor(TEXT2))
         p.drawText(QRect(tw + 12, 0, 300, self.height()),
                    Qt.AlignmentFlag.AlignVCenter, self._label)
         p.end()
@@ -1348,9 +1387,13 @@ class MainWindow(QMainWindow):
 
         bot = QHBoxLayout(); bot.setSpacing(24)
         self._auto = ToggleSwitch("Autostart", get_autostart())
-        self._auto.toggled.connect(set_autostart)
+        self._auto.toggled.connect(self._on_autostart_toggle)
         self._ks = ToggleSwitch("Kill Switch", True)
-        bot.addWidget(self._auto); bot.addWidget(self._ks); bot.addStretch()
+        self._auto_act = ToggleSwitch("Auto-bypass", get_auto_activate())
+        self._auto_act.setDisabled(not get_autostart())
+        self._auto_act.toggled.connect(set_auto_activate)
+        bot.addWidget(self._auto); bot.addWidget(self._ks)
+        bot.addWidget(self._auto_act); bot.addStretch()
         bl = QLabel("by solevoyq")
         bl.setFont(ui_font(10)); bl.setStyleSheet(f"color:{TEXT3};")
         bot.addWidget(bl)
@@ -1376,8 +1419,16 @@ class MainWindow(QMainWindow):
 
         c1l.addWidget(section_label("STARTUP"))
         a2 = ToggleSwitch("Launch on Windows login", get_autostart())
-        a2.toggled.connect(set_autostart); a2.toggled.connect(self._auto.setChecked)
+        a2.toggled.connect(lambda on: (set_autostart(on), self._auto.setChecked(on),
+                                        self._auto_act.setDisabled(not on)))
         c1l.addWidget(a2)
+
+        a3 = ToggleSwitch("Auto-activate bypass on launch", get_auto_activate())
+        a3.setDisabled(not get_autostart())
+        a2.toggled.connect(lambda on: a3.setDisabled(not on))
+        a3.toggled.connect(set_auto_activate)
+        a3.toggled.connect(self._auto_act.setChecked)
+        c1l.addWidget(a3)
 
         c1l.addWidget(hdiv())
         c1l.addWidget(section_label("PROTECTION"))
@@ -1573,6 +1624,10 @@ class MainWindow(QMainWindow):
         self._term.queue_line(t); self._full.queue_line(t)
 
     # -- Startup --
+    def _on_autostart_toggle(self, on: bool):
+        set_autostart(on)
+        self._auto_act.setDisabled(not on)
+
     def _startup(self):
         admin = is_admin()
         self._log(f"Init: {APP_NAME}? v{VERSION} booting...")
@@ -1586,7 +1641,12 @@ class MainWindow(QMainWindow):
             self._log("Network: discord.com → reachable")
         except:
             self._log("ERROR: Discord RTC blocked.")
-        self._log("Status: Awaiting Activation...")
+        # Auto-activate bypass if both autostart and auto-bypass are on
+        if get_autostart() and get_auto_activate() and not miss and admin:
+            self._log("⚡ Auto-bypass enabled — starting DPI tunnel...")
+            QTimer.singleShot(500, self._toggle)
+        else:
+            self._log("Status: Awaiting Activation...")
 
     # -- Tunnel --
     def _toggle(self):
