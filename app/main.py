@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.4"
+VERSION  = "3.6"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -545,33 +545,48 @@ def apply_update(zip_path: str) -> bool:
     """Extract update ZIP over current installation and restart."""
     try:
         if getattr(sys, "frozen", False):
-            app_dir = Path(sys.executable).parent
+            app_dir = Path(sys.executable).resolve().parent
+            exe_path = Path(sys.executable).resolve()
         else:
-            app_dir = Path(__file__).parent
+            app_dir = Path(__file__).resolve().parent
+            exe_path = Path(sys.executable).resolve()
+        exe_name = exe_path.name
+
         # Extract to temp dir first
         tmp_dir = tempfile.mkdtemp(prefix="0bx0d_upd_")
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(tmp_dir)
-        # Create batch script that waits for us to exit, copies files, restarts
-        bat = tempfile.NamedTemporaryFile(mode="w", suffix=".bat",
-                                          prefix="0bx0d_updater_", delete=False)
-        exe_name = Path(sys.executable).name if getattr(sys, "frozen", False) else "python.exe"
-        bat.write(f"""@echo off
+
+        # Build the batch updater script
+        # Key: wait in a loop until the EXE is actually gone, then robocopy
+        bat_path = os.path.join(tempfile.gettempdir(), "0bx0d_updater.bat")
+        with open(bat_path, "w", encoding="utf-8") as bat:
+            bat.write(f"""@echo off
 chcp 65001 >nul
-echo Updating 0bx0d...
-timeout /t 2 /nobreak >nul
-taskkill /f /im "{exe_name}" >nul 2>&1
-timeout /t 1 /nobreak >nul
-xcopy /s /y /q "{tmp_dir}\\*" "{app_dir}\\" >nul
-echo Update complete. Restarting...
-start "" "{sys.executable}" {' '.join(f'"{a}"' for a in sys.argv[1:])}
+title 0bx0d updater
+echo [0bx0d] Waiting for app to close...
+:waitloop
+tasklist /fi "imagename eq {exe_name}" 2>nul | find /i "{exe_name}" >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto waitloop
+)
+echo [0bx0d] App closed. Copying files...
+xcopy /s /y /q "{tmp_dir}\\*" "{app_dir}\\" >nul 2>&1
+if errorlevel 1 (
+    echo [0bx0d] xcopy failed, trying robocopy...
+    robocopy "{tmp_dir}" "{app_dir}" /s /is /it /r:3 /w:1 >nul 2>&1
+)
+echo [0bx0d] Restarting...
+start "" "{exe_path}"
+timeout /t 3 /nobreak >nul
 rmdir /s /q "{tmp_dir}" >nul 2>&1
 del /q "{zip_path}" >nul 2>&1
 del /q "%~f0" >nul 2>&1
+exit
 """)
-        bat_path = bat.name; bat.close()
         subprocess.Popen(["cmd", "/c", bat_path],
-                         creationflags=subprocess.CREATE_NO_WINDOW)
+                         creationflags=subprocess.CREATE_NEW_CONSOLE)
         return True
     except Exception:
         return False
