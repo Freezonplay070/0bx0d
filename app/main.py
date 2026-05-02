@@ -46,6 +46,177 @@ TEXT     = "#e0e0e6"
 TEXT2    = "#8e8ea0"
 TEXT3    = "#4a4a5a"
 
+# =====================================================================
+#  LOCALIZATION (EN / RU)
+# =====================================================================
+LANG_REG_KEY = r"Software\0bx0d\Settings"
+
+def get_lang() -> str:
+    try:
+        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, LANG_REG_KEY, 0, winreg.KEY_QUERY_VALUE)
+        v = winreg.QueryValueEx(k, "Language")[0]; winreg.CloseKey(k)
+        return v if v in ("en", "ru") else "en"
+    except: return "en"
+
+def set_lang(lang: str):
+    try:
+        k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, LANG_REG_KEY)
+        winreg.SetValueEx(k, "Language", 0, winreg.REG_SZ, lang)
+        winreg.CloseKey(k)
+    except: pass
+
+_STRINGS = {
+    # Sidebar
+    "nav_dashboard":      {"en": "Dashboard",      "ru": "Главная"},
+    "nav_logs":           {"en": "Session Logs",    "ru": "Логи сессии"},
+    "nav_settings":       {"en": "Settings",        "ru": "Настройки"},
+    "nav_dns":            {"en": "DNS Manager",     "ru": "DNS Менеджер"},
+    "nav_info":           {"en": "About",           "ru": "О программе"},
+    # Dashboard
+    "view_source":        {"en": "View Source",     "ru": "Исходный код"},
+    "open_source_tool":   {"en": "Open source DPI bypass tool",
+                           "ru": "DPI bypass с открытым кодом"},
+    "preset":             {"en": "PRESET",          "ru": "ПРЕСЕТ"},
+    "live_logs":          {"en": "LIVE LOGS",       "ru": "ЛОГИ"},
+    "autostart":          {"en": "Autostart",       "ru": "Авто��апуск"},
+    "kill_switch":        {"en": "Kill Switch",     "ru": "Kill Switch"},
+    "auto_bypass":        {"en": "Auto-bypass",     "ru": "Авто-обход"},
+    # Settings
+    "settings":           {"en": "SETTINGS",        "ru": "НА��ТРОЙКИ"},
+    "startup":            {"en": "STARTUP",         "ru": "ЗАПУСК"},
+    "launch_on_login":    {"en": "Launch on Windows login",
+                           "ru": "Запускать при входе в Windows"},
+    "auto_activate_launch": {"en": "Auto-activate bypass on launch",
+                             "ru": "Автоматически включать обход при запуске"},
+    "protection":         {"en": "PROTECTION",      "ru": "ЗАЩИТА"},
+    "auto_restart":       {"en": "Auto-restart on unexpected exit",
+                           "ru": "Перезапускать при неожиданном завершении"},
+    "presets_info":       {"en": "PRESETS INFO",    "ru": "ИНФОРМАЦИЯ О ПРЕСЕТАХ"},
+    "language":           {"en": "LANGUAGE",         "ru": "ЯЗЫК"},
+    # Logs
+    "session_log":        {"en": "SESSION LOG",     "ru": "ЛОГ СЕССИИ"},
+    # DNS
+    "dns_manager":        {"en": "DNS MANAGER",     "ru": "DNS МЕНЕДЖЕР"},
+    "refresh":            {"en": "Refresh",         "ru": "Обновить"},
+    "check_all":          {"en": "Check All",       "ru": "Проверить"},
+    "adapter":            {"en": "Adapter",         "ru": "Адаптер"},
+    "servers":            {"en": "SERVERS",          "ru": "СЕРВЕРЫ"},
+    "original_not_saved": {"en": "Original DNS not saved yet",
+                           "ru": "Оригинальный DNS ещё не сохранён"},
+    "apply_selected":     {"en": "Apply Selected",  "ru": "Применить"},
+    "restore_original":   {"en": "Restore Original","ru": "Восстановить"},
+    "reset_dhcp":         {"en": "Reset to DHCP",   "ru": "Сброс DHCP"},
+    "dns_log":            {"en": "DNS LOG",          "ru": "DNS ЛОГ"},
+    # Info / About
+    "info_subtitle":      {"en": "Open source DPI bypass tool for Windows",
+                           "ru": "DPI bypass для Windows с открытым кодом"},
+    "how_it_works":       {"en": "HOW IT WORKS",    "ru": "КАК ЭТО РАБОТАЕТ"},
+    "how_desc": {
+        "en": ("GoodbyeDPI intercepts TCP/UDP packets at the kernel level via "
+               "the WinDivert driver and modifies their headers — fragmentation, "
+               "wrong checksums, fake ACK packets — so that your ISP's deep "
+               "packet inspection (DPI) system can't correctly reassemble the "
+               "stream and lets the connection through unblocked.\n\n"
+               "When you select a Discord preset, the tool writes target domains "
+               "(discord.com, discordapp.com, etc.) to a temporary blacklist file "
+               "and passes it to GoodbyeDPI via the --blacklist flag. This ensures "
+               "only Discord traffic is intercepted, leaving everything else untouched."),
+        "ru": ("GoodbyeDPI перехватывает TCP/UDP пакеты на уровне ядра через "
+               "драйвер WinDivert и модифицирует их заголовки — фрагментация, "
+               "неверные контрольные суммы, фейковые ACK пакеты — чтобы DPI "
+               "система вашего провайдера не могла правильно собрать поток "
+               "и пропускала соединение без блокировки.\n\n"
+               "Когда вы выбираете пресет Discord, инструмент записывает целевые домены "
+               "(discord.com, discordapp.com и т.д.) во временный файл блеклиста "
+               "и передаёт его GoodbyeDPI через флаг --blacklist. Так перехватывается "
+               "только трафик Discord, остальное остаётся нетронутым."),
+    },
+    "features":           {"en": "FEATURES",        "ru": "ФУНКЦИИ"},
+    "features_list": {
+        "en": [
+            "4 presets: Discord Only, Discord + Game, All Traffic, Stealth",
+            "Kill switch: auto-restarts GoodbyeDPI if it crashes",
+            "DNS Manager: change system DNS with latency checker",
+            "Save & restore original DNS settings",
+            "Autostart: launch on Windows login",
+            "Frameless custom UI with dark theme",
+            "Network status monitoring (discord.com ping)",
+        ],
+        "ru": [
+            "4 пресета: Discord Only, Discord + Game, All Traffic, Stealth",
+            "Kill switch: автоперезапуск GoodbyeDPI при падении",
+            "DNS Менеджер: смена системного DNS с проверкой задержки",
+            "Сохранение и восстановление оригинального DNS",
+            "Автозапуск: запуск при входе в Windows",
+            "Кастомный интерфейс без рамки с тёмной темой",
+            "Мониторинг сети (п��нг discord.com)",
+        ],
+    },
+    "tech_details":       {"en": "TECHNICAL DETAILS","ru": "ТЕХНИЧЕСКИЕ ДЕТАЛИ"},
+    "engine":             {"en": "Engine",           "ru": "Движок"},
+    "driver":             {"en": "Driver",           "ru": "Драйвер"},
+    "framework":          {"en": "Framework",        "ru": "Фреймворк"},
+    "platform":           {"en": "Platform",         "ru": "Платформа"},
+    "dns_check":          {"en": "DNS Check",        "ru": "DNS Проверка"},
+    "license_lbl":        {"en": "License",          "ru": "Лицензия"},
+    "driver_val":         {"en": "WinDivert (kernel-level packet interception)",
+                           "ru": "WinDivert (перехват пакетов на уровне ядра)"},
+    "platform_val":       {"en": "Windows 10 / 11 (x64, requires admin)",
+                           "ru": "Windows 10 / 11 (x64, нужен администра��ор)"},
+    "dns_check_val":      {"en": "Raw UDP query to google.com (port 53)",
+                           "ru": "Прямой UDP запрос к google.com (порт 53)"},
+    "license_val":        {"en": "MIT — free and open source",
+                           "ru": "MIT — бесплатно и с открытым кодом"},
+    "not_malware":        {"en": "not malware, just raw code",
+                           "ru": "не вирус, просто код"},
+    # License dialog
+    "activation":         {"en": "Activation",       "ru": "Активация"},
+    "enter_key":          {"en": "Enter your license key to continue",
+                           "ru": "Введите л��цензионный ключ для продолжения"},
+    "activate_btn":       {"en": "Activate",         "ru": "Активировать"},
+    "validating":         {"en": "Validating...",     "ru": "Проверка..."},
+    # Startup messages
+    "init_boot":          {"en": "Init: {name}? v{ver} booting...",
+                           "ru": "Запуск: {name}? v{ver} загрузка..."},
+    "admin_ok":           {"en": "✓ admin: OK",       "ru": "✓ админ: ОК"},
+    "admin_miss":         {"en": "✗ admin: MISSING — restart as admin",
+                           "ru": "��� админ: НЕТ — перезапустите от админа"},
+    "missing_file":       {"en": "✗ missing: {f}",    "ru": "✗ не найден: {f}"},
+    "driver_ok":          {"en": "�� driver files: OK", "ru": "✓ файлы драйвера: ОК"},
+    "net_reachable":      {"en": "Network: discord.com → reachable",
+                           "ru": "Сеть: discord.com → доступен"},
+    "net_blocked":        {"en": "ERROR: Discord RTC blocked.",
+                           "ru": "ОШИБКА: Discord RTC заблокирован."},
+    "auto_bypass_start":  {"en": "⚡ Auto-bypass enabled — starting DPI tunnel...",
+                           "ru": "⚡ Авто-обход включён — запуск DPI туннеля..."},
+    "awaiting":           {"en": "Status: Awaiting Activation...",
+                           "ru": "Статус: Ожидание активации..."},
+    "activated_msg":      {"en": "▶ ACTIVATED. enjoy your freedom.",
+                           "ru": "▶ АКТИВИРОВАНО. наслаждайся свободой."},
+    "deactivated_msg":    {"en": "■ deactivated.",
+                           "ru": "■ деактивировано."},
+    "orig_saved":         {"en": "Original saved:  {p}  /  {s}",
+                           "ru": "Оригинал сохранён:  {p}  /  {s}"},
+    "orig_first_change":  {"en": "Original DNS will be saved on first change",
+                           "ru": "Оригинальный DNS сохранится при первом изменении"},
+    "adapters_refreshed": {"en": "✓ adapters refreshed",
+                           "ru": "✓ адаптеры обновлены"},
+}
+
+_current_lang = get_lang()
+
+def tr(key: str, **kwargs) -> str:
+    """Get translated string."""
+    s = _STRINGS.get(key, {}).get(_current_lang, key)
+    if kwargs:
+        try: return s.format(**kwargs)
+        except: return s
+    return s
+
+def tr_list(key: str) -> list[str]:
+    """Get translated list."""
+    return _STRINGS.get(key, {}).get(_current_lang, [])
+
 # -- discord domains (written to temp file for --blacklist) --
 DISCORD_DOMAINS = [
     "discord.com", "discordapp.com", "discord.gg",
@@ -1226,13 +1397,13 @@ class LicenseDialog(QMainWindow):
         cl = QVBoxLayout(content)
         cl.setContentsMargins(36, 28, 36, 28); cl.setSpacing(16)
 
-        title = QLabel("Activation")
+        title = QLabel(tr("activation"))
         title.setFont(ui_font(22, bold=True))
         title.setStyleSheet(f"color:{TEXT};")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
 
-        hint = QLabel("Enter your license key to continue")
+        hint = QLabel(tr("enter_key"))
         hint.setFont(ui_font(12)); hint.setStyleSheet(f"color:{TEXT3};")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(hint)
@@ -1256,7 +1427,7 @@ class LicenseDialog(QMainWindow):
         self._input.returnPressed.connect(self._do_activate)
         cl.addWidget(self._input)
 
-        self._act_btn = Btn("Activate", accent=True)
+        self._act_btn = Btn(tr("activate_btn"), accent=True)
         self._act_btn.setFixedHeight(42)
         self._act_btn.clicked.connect(self._do_activate)
         cl.addWidget(self._act_btn)
@@ -1273,7 +1444,7 @@ class LicenseDialog(QMainWindow):
 
     def _do_activate(self):
         key = self._input.text().strip()
-        self._status.setText("Validating...")
+        self._status.setText(tr("validating"))
         self._status.setStyleSheet(f"color:{TEXT2};")
         QApplication.processEvents()
 
@@ -1319,11 +1490,11 @@ class MainWindow(QMainWindow):
         sl = QVBoxLayout(sb); sl.setContentsMargins(0, 0, 0, 0); sl.setSpacing(2)
         sl.addSpacing(46)
         self._sbs = [
-            SideBtn("home", "Dashboard"),
-            SideBtn("logs", "Session Logs"),
-            SideBtn("settings", "Settings"),
-            SideBtn("dns", "DNS Manager"),
-            SideBtn("info", "About"),
+            SideBtn("home", tr("nav_dashboard")),
+            SideBtn("logs", tr("nav_logs")),
+            SideBtn("settings", tr("nav_settings")),
+            SideBtn("dns", tr("nav_dns")),
+            SideBtn("info", tr("nav_info")),
         ]
         self._sbs[0].set_active(True)
         for b in self._sbs: sl.addWidget(b)
@@ -1360,17 +1531,17 @@ class MainWindow(QMainWindow):
         rc = Card(radius=10); rc_vl = QVBoxLayout(rc)
         rc_vl.setContentsMargins(18, 16, 18, 16); rc_vl.setSpacing(10)
 
-        src_btn = Btn("View Source", accent=True); src_btn.setFixedHeight(42)
+        src_btn = Btn(tr("view_source"), accent=True); src_btn.setFixedHeight(42)
         src_btn.clicked.connect(
             lambda: __import__("webbrowser").open("https://github.com/Freezonplay070/0bx0d"))
         rc_vl.addWidget(src_btn)
 
-        sub = QLabel("Open source DPI bypass tool")
+        sub = QLabel(tr("open_source_tool"))
         sub.setFont(ui_font(11)); sub.setStyleSheet(f"color:{TEXT3};")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter); rc_vl.addWidget(sub)
 
         rc_vl.addWidget(hdiv())
-        rc_vl.addWidget(section_label("PRESET"))
+        rc_vl.addWidget(section_label(tr("preset")))
         self._preset = QComboBox()
         self._preset.addItems(list(PRESETS.keys()))
         rc_vl.addWidget(self._preset); rc_vl.addStretch()
@@ -1379,17 +1550,17 @@ class MainWindow(QMainWindow):
 
         lc = Card(radius=10); lc_vl = QVBoxLayout(lc)
         lc_vl.setContentsMargins(14, 12, 14, 12); lc_vl.setSpacing(6)
-        lc_vl.addWidget(section_label("LIVE LOGS"))
+        lc_vl.addWidget(section_label(tr("live_logs")))
         self._term = Terminal(compact=True)
         self._term.setMinimumHeight(110); self._term.setMaximumHeight(150)
         lc_vl.addWidget(self._term)
         vl.addWidget(lc)
 
         bot = QHBoxLayout(); bot.setSpacing(24)
-        self._auto = ToggleSwitch("Autostart", get_autostart())
+        self._auto = ToggleSwitch(tr("autostart"), get_autostart())
         self._auto.toggled.connect(self._on_autostart_toggle)
-        self._ks = ToggleSwitch("Kill Switch", True)
-        self._auto_act = ToggleSwitch("Auto-bypass", get_auto_activate())
+        self._ks = ToggleSwitch(tr("kill_switch"), True)
+        self._auto_act = ToggleSwitch(tr("auto_bypass"), get_auto_activate())
         self._auto_act.setDisabled(not get_autostart())
         self._auto_act.toggled.connect(set_auto_activate)
         bot.addWidget(self._auto); bot.addWidget(self._ks)
@@ -1404,7 +1575,7 @@ class MainWindow(QMainWindow):
     def _build_logs(self) -> QWidget:
         page = QWidget()
         vl = QVBoxLayout(page); vl.setContentsMargins(24, 20, 24, 16)
-        vl.addWidget(section_label("SESSION LOG")); vl.addSpacing(6)
+        vl.addWidget(section_label(tr("session_log"))); vl.addSpacing(6)
         self._full = Terminal(); vl.addWidget(self._full)
         return page
 
@@ -1412,18 +1583,18 @@ class MainWindow(QMainWindow):
     def _build_sett(self) -> QWidget:
         page = QWidget()
         vl = QVBoxLayout(page); vl.setContentsMargins(24, 20, 24, 16); vl.setSpacing(14)
-        vl.addWidget(section_label("SETTINGS")); vl.addWidget(hdiv())
+        vl.addWidget(section_label(tr("settings"))); vl.addWidget(hdiv())
 
         c1 = Card(radius=10); c1l = QVBoxLayout(c1)
         c1l.setContentsMargins(20, 18, 20, 18); c1l.setSpacing(14)
 
-        c1l.addWidget(section_label("STARTUP"))
-        a2 = ToggleSwitch("Launch on Windows login", get_autostart())
+        c1l.addWidget(section_label(tr("startup")))
+        a2 = ToggleSwitch(tr("launch_on_login"), get_autostart())
         a2.toggled.connect(lambda on: (set_autostart(on), self._auto.setChecked(on),
                                         self._auto_act.setDisabled(not on)))
         c1l.addWidget(a2)
 
-        a3 = ToggleSwitch("Auto-activate bypass on launch", get_auto_activate())
+        a3 = ToggleSwitch(tr("auto_activate_launch"), get_auto_activate())
         a3.setDisabled(not get_autostart())
         a2.toggled.connect(lambda on: a3.setDisabled(not on))
         a3.toggled.connect(set_auto_activate)
@@ -1431,15 +1602,28 @@ class MainWindow(QMainWindow):
         c1l.addWidget(a3)
 
         c1l.addWidget(hdiv())
-        c1l.addWidget(section_label("PROTECTION"))
-        k2 = ToggleSwitch("Auto-restart on unexpected exit", True)
+        c1l.addWidget(section_label(tr("protection")))
+        k2 = ToggleSwitch(tr("auto_restart"), True)
         k2.toggled.connect(self._ks.setChecked)
         c1l.addWidget(k2)
         vl.addWidget(c1)
 
+        # Language
+        cl = Card(radius=10); cll = QVBoxLayout(cl)
+        cll.setContentsMargins(20, 18, 20, 18); cll.setSpacing(10)
+        cll.addWidget(section_label(tr("language")))
+        lang_row = QHBoxLayout(); lang_row.setSpacing(8)
+        self._lang_combo = QComboBox()
+        self._lang_combo.addItems(["English", "Русский"])
+        self._lang_combo.setCurrentIndex(0 if _current_lang == "en" else 1)
+        self._lang_combo.currentIndexChanged.connect(self._change_lang)
+        lang_row.addWidget(self._lang_combo); lang_row.addStretch()
+        cll.addLayout(lang_row)
+        vl.addWidget(cl)
+
         c2 = Card(radius=10); c2l = QVBoxLayout(c2)
         c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(8)
-        c2l.addWidget(section_label("PRESETS INFO"))
+        c2l.addWidget(section_label(tr("presets_info")))
         for name, data in PRESETS.items():
             desc = QLabel(f"{name}  →  mode: {data['mode']}")
             desc.setFont(ui_font(11)); desc.setStyleSheet(f"color:{TEXT2};")
@@ -1458,16 +1642,16 @@ class MainWindow(QMainWindow):
         vl = QVBoxLayout(page); vl.setContentsMargins(24, 20, 24, 16); vl.setSpacing(10)
 
         h = QHBoxLayout()
-        h.addWidget(section_label("DNS MANAGER")); h.addStretch()
-        ref = Btn("Refresh"); ref.clicked.connect(self._dns_refresh)
-        chk = Btn("Check All", accent=True)
+        h.addWidget(section_label(tr("dns_manager"))); h.addStretch()
+        ref = Btn(tr("refresh")); ref.clicked.connect(self._dns_refresh)
+        chk = Btn(tr("check_all"), accent=True)
         chk.clicked.connect(self._dns_check_all)
         h.addWidget(ref); h.addSpacing(6); h.addWidget(chk)
         vl.addLayout(h); vl.addWidget(hdiv())
 
         ac = Card(radius=8); acl = QHBoxLayout(ac)
         acl.setContentsMargins(16, 10, 16, 10); acl.setSpacing(12)
-        al = QLabel("Adapter")
+        al = QLabel(tr("adapter"))
         al.setFont(ui_font(11, bold=True)); al.setStyleSheet(f"color:{TEXT3};")
         al.setFixedWidth(65); acl.addWidget(al)
         self._adapter = QComboBox()
@@ -1480,7 +1664,7 @@ class MainWindow(QMainWindow):
         acl.addWidget(self._dns_cur_lbl, 1)
         vl.addWidget(ac)
 
-        vl.addWidget(section_label("SERVERS"))
+        vl.addWidget(section_label(tr("servers")))
         self._dns_cards: dict[str, DnsCard] = {}
         grid_w = QWidget(); grid_l = QHBoxLayout(grid_w)
         grid_l.setContentsMargins(0, 0, 0, 0); grid_l.setSpacing(6)
@@ -1490,16 +1674,16 @@ class MainWindow(QMainWindow):
             self._dns_cards[name] = card; grid_l.addWidget(card)
         vl.addWidget(grid_w)
 
-        self._orig_lbl = QLabel("Original DNS not saved yet")
+        self._orig_lbl = QLabel(tr("original_not_saved"))
         self._orig_lbl.setFont(ui_font(10)); self._orig_lbl.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(self._orig_lbl)
 
         ab = QHBoxLayout(); ab.setSpacing(8)
-        self._dns_act = Btn("Apply Selected", accent=True)
+        self._dns_act = Btn(tr("apply_selected"), accent=True)
         self._dns_act.clicked.connect(self._dns_activate)
-        self._dns_rst = Btn("Restore Original")
+        self._dns_rst = Btn(tr("restore_original"))
         self._dns_rst.clicked.connect(self._dns_restore)
-        self._dns_dhcp = Btn("Reset to DHCP")
+        self._dns_dhcp = Btn(tr("reset_dhcp"))
         self._dns_dhcp.clicked.connect(self._dns_reset_dhcp)
         ab.addWidget(self._dns_act); ab.addWidget(self._dns_rst); ab.addWidget(self._dns_dhcp)
         ab.addStretch(); vl.addLayout(ab)
@@ -1526,25 +1710,15 @@ class MainWindow(QMainWindow):
         title = QLabel("0bx0d?")
         title.setFont(title_font(30))
         title.setStyleSheet(f"color:{ACCENT};"); vl.addWidget(title)
-        subtitle = QLabel("Open source DPI bypass tool for Windows")
+        subtitle = QLabel(tr("info_subtitle"))
         subtitle.setFont(ui_font(13)); subtitle.setStyleSheet(f"color:{TEXT2};")
         vl.addWidget(subtitle)
 
         # How it works
         c1 = Card(radius=10); c1l = QVBoxLayout(c1)
         c1l.setContentsMargins(20, 18, 20, 18); c1l.setSpacing(10)
-        c1l.addWidget(section_label("HOW IT WORKS"))
-        desc = QLabel(
-            "GoodbyeDPI intercepts TCP/UDP packets at the kernel level via "
-            "the WinDivert driver and modifies their headers — fragmentation, "
-            "wrong checksums, fake ACK packets — so that your ISP's deep "
-            "packet inspection (DPI) system can't correctly reassemble the "
-            "stream and lets the connection through unblocked.\n\n"
-            "When you select a Discord preset, the tool writes target domains "
-            "(discord.com, discordapp.com, etc.) to a temporary blacklist file "
-            "and passes it to GoodbyeDPI via the --blacklist flag. This ensures "
-            "only Discord traffic is intercepted, leaving everything else untouched."
-        )
+        c1l.addWidget(section_label(tr("how_it_works")))
+        desc = QLabel(tr("how_desc"))
         desc.setWordWrap(True)
         desc.setFont(ui_font(12)); desc.setStyleSheet(f"color:{TEXT2};")
         c1l.addWidget(desc)
@@ -1553,17 +1727,8 @@ class MainWindow(QMainWindow):
         # Features
         c2 = Card(radius=10); c2l = QVBoxLayout(c2)
         c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(6)
-        c2l.addWidget(section_label("FEATURES"))
-        features = [
-            "4 presets: Discord Only, Discord + Game, All Traffic, Stealth",
-            "Kill switch: auto-restarts GoodbyeDPI if it crashes",
-            "DNS Manager: change system DNS with latency checker",
-            "Save & restore original DNS settings",
-            "Autostart: launch on Windows login",
-            "Frameless custom UI with dark theme",
-            "Network status monitoring (discord.com ping)",
-        ]
-        for feat in features:
+        c2l.addWidget(section_label(tr("features")))
+        for feat in tr_list("features_list"):
             fl = QLabel(f"  •  {feat}")
             fl.setFont(ui_font(11)); fl.setStyleSheet(f"color:{TEXT2};")
             fl.setWordWrap(True); c2l.addWidget(fl)
@@ -1572,13 +1737,13 @@ class MainWindow(QMainWindow):
         # Tech info
         c3 = Card(radius=10); c3l = QVBoxLayout(c3)
         c3l.setContentsMargins(20, 18, 20, 18); c3l.setSpacing(6)
-        c3l.addWidget(section_label("TECHNICAL DETAILS"))
-        c3l.addLayout(info_row("Engine", "GoodbyeDPI v0.2.2 by ValdikSS"))
-        c3l.addLayout(info_row("Driver", "WinDivert (kernel-level packet interception)"))
-        c3l.addLayout(info_row("Framework", "PySide6 (Qt for Python)"))
-        c3l.addLayout(info_row("Platform", "Windows 10 / 11 (x64, requires admin)"))
-        c3l.addLayout(info_row("DNS Check", "Raw UDP query to google.com (port 53)"))
-        c3l.addLayout(info_row("License", "MIT — free and open source"))
+        c3l.addWidget(section_label(tr("tech_details")))
+        c3l.addLayout(info_row(tr("engine"), "GoodbyeDPI v0.2.2 by ValdikSS"))
+        c3l.addLayout(info_row(tr("driver"), tr("driver_val")))
+        c3l.addLayout(info_row(tr("framework"), "PySide6 (Qt for Python)"))
+        c3l.addLayout(info_row(tr("platform"), tr("platform_val")))
+        c3l.addLayout(info_row(tr("dns_check"), tr("dns_check_val")))
+        c3l.addLayout(info_row(tr("license_lbl"), tr("license_val")))
         vl.addWidget(c3)
 
         # Links
@@ -1590,7 +1755,7 @@ class MainWindow(QMainWindow):
         brow.addWidget(gh); brow.addWidget(gdpi); brow.addStretch()
         vl.addLayout(brow)
 
-        ft = QLabel(f"v{VERSION}  ·  by solevoyq  ·  MIT  ·  not malware, just raw code")
+        ft = QLabel(f"v{VERSION}  ·  by solevoyq  ·  MIT  ·  {tr('not_malware')}")
         ft.setFont(ui_font(10)); ft.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(ft)
         vl.addSpacing(8)
@@ -1624,29 +1789,56 @@ class MainWindow(QMainWindow):
         self._term.queue_line(t); self._full.queue_line(t)
 
     # -- Startup --
+    def _change_lang(self, idx):
+        global _current_lang
+        lang = "en" if idx == 0 else "ru"
+        if lang == _current_lang: return
+        _current_lang = lang; set_lang(lang)
+        # Rebuild UI pages
+        self._stack.setCurrentIndex(0)
+        for i in reversed(range(self._stack.count())):
+            w = self._stack.widget(i); self._stack.removeWidget(w); w.deleteLater()
+        for page in [self._build_dash(), self._build_logs(),
+                     self._build_sett(), self._build_dns(), self._build_info()]:
+            self._stack.addWidget(page)
+        # Reconnect workers to new terminal widgets
+        try:
+            self._tw.log.disconnect()
+            self._dw.log.disconnect()
+        except: pass
+        self._tw.log.connect(self._log)
+        self._dw.log.connect(self._dns_log.queue_line)
+        self._dw.done.connect(self._dns_done)
+        self._dw.dns_result.connect(self._dns_card_result)
+        # Update sidebar labels
+        labels = ["nav_dashboard", "nav_logs", "nav_settings", "nav_dns", "nav_info"]
+        for btn, key in zip(self._sbs, labels):
+            btn._tip = tr(key); btn.setToolTip(tr(key)); btn.update()
+        self._startup()
+
     def _on_autostart_toggle(self, on: bool):
         set_autostart(on)
         self._auto_act.setDisabled(not on)
 
     def _startup(self):
         admin = is_admin()
-        self._log(f"Init: {APP_NAME}? v{VERSION} booting...")
-        self._log(f"{'✓' if admin else '✗'} admin: {'OK' if admin else 'MISSING — restart as admin'}")
+        self._log(tr("init_boot", name=APP_NAME, ver=VERSION))
+        self._log(tr("admin_ok") if admin else tr("admin_miss"))
         miss = [f for f in ("goodbyedpi.exe", "WinDivert.dll", "WinDivert64.sys")
                 if not (BIN_DIR / f).exists()]
-        for f in miss: self._log(f"✗ missing: {f}")
-        if not miss: self._log("✓ driver files: OK")
+        for f in miss: self._log(tr("missing_file", f=f))
+        if not miss: self._log(tr("driver_ok"))
         try:
             socket.create_connection(("discord.com", 443), timeout=3).close()
-            self._log("Network: discord.com → reachable")
+            self._log(tr("net_reachable"))
         except:
-            self._log("ERROR: Discord RTC blocked.")
+            self._log(tr("net_blocked"))
         # Auto-activate bypass if both autostart and auto-bypass are on
         if get_autostart() and get_auto_activate() and not miss and admin:
-            self._log("⚡ Auto-bypass enabled — starting DPI tunnel...")
+            self._log(tr("auto_bypass_start"))
             QTimer.singleShot(500, self._toggle)
         else:
-            self._log("Status: Awaiting Activation...")
+            self._log(tr("awaiting"))
 
     # -- Tunnel --
     def _toggle(self):
@@ -1655,11 +1847,11 @@ class MainWindow(QMainWindow):
 
     def _on_start(self):
         self._on = True; self._pwr.set_active(True)
-        self._tbar.set_connected(True); self._log("▶ ACTIVATED. enjoy your freedom.")
+        self._tbar.set_connected(True); self._log(tr("activated_msg"))
 
     def _on_stop(self):
         self._on = False; self._pwr.set_active(False)
-        self._tbar.set_connected(False); self._log("■ deactivated.")
+        self._tbar.set_connected(False); self._log(tr("deactivated_msg"))
 
     def _on_err(self, msg): self._on_stop(); self._log(f"✗ error: {msg}")
     def _on_ping(self, ms): self._ping = ms
@@ -1670,15 +1862,15 @@ class MainWindow(QMainWindow):
         p, s = get_dns_ips(adapter)
         self._dns_cur_lbl.setText(f"{p}  /  {s}" if p else "AUTO (DHCP)")
         op, os_ = get_original_dns(adapter)
-        if op: self._orig_lbl.setText(f"Original saved:  {op}  /  {os_ or '—'}")
-        else: self._orig_lbl.setText("Original DNS will be saved on first change")
+        if op: self._orig_lbl.setText(tr("orig_saved", p=op, s=os_ or '—'))
+        else: self._orig_lbl.setText(tr("orig_first_change"))
 
     def _dns_refresh(self):
         ads = get_adapters(); cur = self._adapter.currentText()
         self._adapter.clear(); self._adapter.addItems(ads)
         if cur in ads: self._adapter.setCurrentText(cur)
         self._dns_show_current()
-        self._dns_log.queue_line("✓ adapters refreshed")
+        self._dns_log.queue_line(tr("adapters_refreshed"))
 
     def _dns_select(self, name):
         self._dns_sel = name
