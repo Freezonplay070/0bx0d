@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""0bx0d? -- DPI bypass tool v3.1"""
-import ctypes, hashlib, json, math, os, random, socket, struct, subprocess, sys
-import tempfile, time, winreg
+"""0bx0d? -- DPI bypass tool v3.4"""
+import ctypes, hashlib, json, math, os, random, shutil, socket, struct, subprocess, sys
+import tempfile, time, winreg, zipfile
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -201,6 +201,22 @@ _STRINGS = {
                            "ru": "Оригинальный DNS сохранится при первом изменении"},
     "adapters_refreshed": {"en": "✓ adapters refreshed",
                            "ru": "✓ адаптеры обновлены"},
+    # Updater
+    "updates":            {"en": "UPDATES",          "ru": "ОБНОВЛЕНИЯ"},
+    "check_updates":      {"en": "Check for updates","ru": "Проверить обновления"},
+    "checking_updates":   {"en": "Checking...",      "ru": "Проверка..."},
+    "update_available":   {"en": "Update {ver} available!",
+                           "ru": "Доступно обновление {ver}!"},
+    "no_updates":         {"en": "You have the latest version",
+                           "ru": "У вас последняя версия"},
+    "download_update":    {"en": "Download & Install","ru": "Скачать и установить"},
+    "downloading":        {"en": "Downloading... {pct}%",
+                           "ru": "Загрузка... {pct}%"},
+    "installing":         {"en": "Installing update, app will restart...",
+                           "ru": "Установка обновления, приложение перезапустится..."},
+    "update_failed":      {"en": "Update failed. Download manually from GitHub.",
+                           "ru": "Ошибка обновления. Скачайте вручную с GitHub."},
+    "current_version":    {"en": "Current: v{ver}",  "ru": "Текущая: v{ver}"},
 }
 
 _current_lang = get_lang()
@@ -448,6 +464,97 @@ def relaunch_admin():
         " ".join(f'"{a}"' for a in sys.argv), None, 1)
     sys.exit(0)
 
+# =====================================================================
+#  AUTO-UPDATER (GitHub Releases)
+# =====================================================================
+GITHUB_REPO = "Freezonplay070/0bx0d"
+GITHUB_API  = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
+def _parse_version(tag: str) -> tuple[int, ...]:
+    """Parse 'v3.4' or '3.4' into (3, 4)."""
+    tag = tag.lstrip("vV").strip()
+    parts = []
+    for p in tag.split("."):
+        try: parts.append(int(p))
+        except: parts.append(0)
+    return tuple(parts) or (0,)
+
+def check_update() -> tuple[bool, str, str]:
+    """Check GitHub for newer version. Returns (has_update, new_version, zip_url)."""
+    try:
+        req = urllib.request.Request(GITHUB_API,
+              headers={"Accept": "application/vnd.github.v3+json",
+                       "User-Agent": f"0bx0d/{VERSION}"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        tag = data.get("tag_name", "")
+        remote = _parse_version(tag)
+        local  = _parse_version(VERSION)
+        if remote > local:
+            zip_url = ""
+            for asset in data.get("assets", []):
+                if asset["name"].lower().endswith(".zip"):
+                    zip_url = asset["browser_download_url"]; break
+            return True, tag, zip_url
+        return False, tag, ""
+    except Exception:
+        return False, "", ""
+
+def download_update(zip_url: str, progress_cb=None) -> str | None:
+    """Download ZIP to temp dir. Returns path or None on failure."""
+    try:
+        req = urllib.request.Request(zip_url,
+              headers={"User-Agent": f"0bx0d/{VERSION}"})
+        resp = urllib.request.urlopen(req, timeout=120)
+        total = int(resp.headers.get("Content-Length", 0))
+        fd, path = tempfile.mkstemp(prefix="0bx0d_update_", suffix=".zip")
+        downloaded = 0
+        with os.fdopen(fd, "wb") as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk: break
+                f.write(chunk); downloaded += len(chunk)
+                if progress_cb and total > 0:
+                    progress_cb(int(downloaded * 100 / total))
+        return path
+    except Exception:
+        return None
+
+def apply_update(zip_path: str) -> bool:
+    """Extract update ZIP over current installation and restart."""
+    try:
+        if getattr(sys, "frozen", False):
+            app_dir = Path(sys.executable).parent
+        else:
+            app_dir = Path(__file__).parent
+        # Extract to temp dir first
+        tmp_dir = tempfile.mkdtemp(prefix="0bx0d_upd_")
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(tmp_dir)
+        # Create batch script that waits for us to exit, copies files, restarts
+        bat = tempfile.NamedTemporaryFile(mode="w", suffix=".bat",
+                                          prefix="0bx0d_updater_", delete=False)
+        exe_name = Path(sys.executable).name if getattr(sys, "frozen", False) else "python.exe"
+        bat.write(f"""@echo off
+chcp 65001 >nul
+echo Updating 0bx0d...
+timeout /t 2 /nobreak >nul
+taskkill /f /im "{exe_name}" >nul 2>&1
+timeout /t 1 /nobreak >nul
+xcopy /s /y /q "{tmp_dir}\\*" "{app_dir}\\" >nul
+echo Update complete. Restarting...
+start "" "{sys.executable}" {' '.join(f'"{a}"' for a in sys.argv[1:])}
+rmdir /s /q "{tmp_dir}" >nul 2>&1
+del /q "{zip_path}" >nul 2>&1
+del /q "%~f0" >nul 2>&1
+""")
+        bat_path = bat.name; bat.close()
+        subprocess.Popen(["cmd", "/c", bat_path],
+                         creationflags=subprocess.CREATE_NO_WINDOW)
+        return True
+    except Exception:
+        return False
+
 def set_autostart(on: bool):
     try:
         k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY, 0,
@@ -544,6 +651,40 @@ def check_dns_latency(server_ip: str) -> float | None:
 # =====================================================================
 #  WORKERS
 # =====================================================================
+class UpdateWorker(QObject):
+    """Background update checker/downloader."""
+    check_done  = Signal(bool, str, str)  # has_update, version, zip_url
+    dl_progress = Signal(int)             # percent 0-100
+    dl_done     = Signal(bool, str)       # success, zip_path
+    apply_done  = Signal(bool)
+
+    _do_check    = Signal()
+    _do_download = Signal(str)
+    _do_apply    = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self._do_check.connect(self._check)
+        self._do_download.connect(self._download)
+        self._do_apply.connect(self._apply)
+
+    def check(self):   self._do_check.emit()
+    def download(self, url): self._do_download.emit(url)
+    def apply(self, path):   self._do_apply.emit(path)
+
+    def _check(self):
+        has, ver, url = check_update()
+        self.check_done.emit(has, ver, url)
+
+    def _download(self, url):
+        path = download_update(url, lambda p: self.dl_progress.emit(p))
+        self.dl_done.emit(path is not None, path or "")
+
+    def _apply(self, path):
+        ok = apply_update(path)
+        self.apply_done.emit(ok)
+
+
 class TunnelWorker(QObject):
     log     = Signal(str)
     started = Signal()
@@ -1653,6 +1794,23 @@ class MainWindow(QMainWindow):
         cll.addLayout(lang_row)
         vl.addWidget(cl)
 
+        # Updates
+        cu = Card(radius=10); cul = QVBoxLayout(cu)
+        cul.setContentsMargins(20, 18, 20, 18); cul.setSpacing(10)
+        cul.addWidget(section_label(tr("updates")))
+        self._upd_ver = QLabel(tr("current_version", ver=VERSION))
+        self._upd_ver.setFont(ui_font(11)); self._upd_ver.setStyleSheet(f"color:{TEXT2};")
+        cul.addWidget(self._upd_ver)
+        upd_row = QHBoxLayout(); upd_row.setSpacing(8)
+        self._upd_btn = Btn(tr("check_updates"), accent=True)
+        self._upd_btn.clicked.connect(self._do_check_update)
+        upd_row.addWidget(self._upd_btn)
+        self._upd_status = QLabel("")
+        self._upd_status.setFont(ui_font(11)); self._upd_status.setStyleSheet(f"color:{TEXT3};")
+        upd_row.addWidget(self._upd_status); upd_row.addStretch()
+        cul.addLayout(upd_row)
+        vl.addWidget(cu)
+
         c2 = Card(radius=10); c2l = QVBoxLayout(c2)
         c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(8)
         c2l.addWidget(section_label(tr("presets_info")))
@@ -1817,6 +1975,15 @@ class MainWindow(QMainWindow):
         self._dw.dns_result.connect(self._dns_card_result)
         self._dt.start()
 
+        self._uw = UpdateWorker(); self._ut = QThread()
+        self._uw.moveToThread(self._ut)
+        self._uw.check_done.connect(self._on_update_check)
+        self._uw.dl_progress.connect(self._on_update_progress)
+        self._uw.dl_done.connect(self._on_update_downloaded)
+        self._uw.apply_done.connect(self._on_update_applied)
+        self._ut.start()
+        self._upd_zip_url = ""
+
     def _log(self, t):
         self._term.queue_line(t); self._full.queue_line(t)
 
@@ -1847,6 +2014,58 @@ class MainWindow(QMainWindow):
         for btn, key in zip(self._sbs, labels):
             btn._tip = tr(key); btn.setToolTip(tr(key)); btn.update()
         self._startup()
+
+    # -- Updater --
+    def _do_check_update(self):
+        self._upd_btn.setEnabled(False)
+        self._upd_status.setText(tr("checking_updates"))
+        self._upd_status.setStyleSheet(f"color:{TEXT2};")
+        self._uw.check()
+
+    def _on_update_check(self, has_update, version, zip_url):
+        if has_update:
+            self._upd_zip_url = zip_url
+            self._upd_status.setText(tr("update_available", ver=version))
+            self._upd_status.setStyleSheet(f"color:{GREEN};")
+            self._upd_btn.setText(tr("download_update"))
+            self._upd_btn.setEnabled(True)
+            try: self._upd_btn.clicked.disconnect()
+            except: pass
+            self._upd_btn.clicked.connect(self._do_download_update)
+        else:
+            self._upd_status.setText(tr("no_updates"))
+            self._upd_status.setStyleSheet(f"color:{TEXT3};")
+            self._upd_btn.setEnabled(True)
+
+    def _do_download_update(self):
+        if not self._upd_zip_url: return
+        self._upd_btn.setEnabled(False)
+        self._upd_status.setText(tr("downloading", pct=0))
+        self._upd_status.setStyleSheet(f"color:{ACCENT};")
+        self._uw.download(self._upd_zip_url)
+
+    def _on_update_progress(self, pct):
+        self._upd_status.setText(tr("downloading", pct=pct))
+
+    def _on_update_downloaded(self, ok, path):
+        if ok:
+            self._upd_status.setText(tr("installing"))
+            self._upd_status.setStyleSheet(f"color:{GREEN};")
+            self._uw.apply(path)
+        else:
+            self._upd_status.setText(tr("update_failed"))
+            self._upd_status.setStyleSheet(f"color:{ACCENT2};")
+            self._upd_btn.setEnabled(True)
+
+    def _on_update_applied(self, ok):
+        if ok:
+            self._upd_status.setText(tr("installing"))
+            # App will be killed by the updater batch script
+            QTimer.singleShot(1500, lambda: sys.exit(0))
+        else:
+            self._upd_status.setText(tr("update_failed"))
+            self._upd_status.setStyleSheet(f"color:{ACCENT2};")
+            self._upd_btn.setEnabled(True)
 
     def _on_autostart_toggle(self, on: bool):
         set_autostart(on)
@@ -1948,7 +2167,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, e):
         if self._on: self._tw.stop()
         self._pw.stop()
-        for t in (self._pt, self._tt, self._dt): t.quit(); t.wait(2000)
+        for t in (self._pt, self._tt, self._dt, self._ut): t.quit(); t.wait(2000)
         e.accept()
 
 # =====================================================================
