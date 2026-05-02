@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""0bx0d? -- DPI bypass tool v3.0"""
+"""0bx0d? -- DPI bypass tool v3.1"""
 import ctypes, math, os, random, socket, struct, subprocess, sys, tempfile, time, winreg
 from datetime import datetime
 from pathlib import Path
@@ -16,20 +16,20 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QTextEdit, QFrame, QComboBox, QSizePolicy,
-    QStackedWidget,
+    QStackedWidget, QScrollArea,
 )
 
 # =====================================================================
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.0"
+VERSION  = "3.1"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 # -- palette --
 BG       = "#0e0e12"
-SURFACE  = "#141419"
+SURFACE  = "#131318"
 CARD     = "#1a1a22"
 CARD2    = "#20202c"
 BORDER   = "#252530"
@@ -37,6 +37,7 @@ ACCENT   = "#e53935"
 ACCENT2  = "#ff5252"
 ACCENT_DK= "#7f1d1d"
 GREEN    = "#4caf50"
+GREEN2   = "#66bb6a"
 YELLOW   = "#ffc107"
 ORANGE   = "#ff6d00"
 TEXT     = "#e0e0e6"
@@ -113,6 +114,12 @@ def mono_font(px: int, bold=False) -> QFont:
     f.setFamilies(["JetBrains Mono", "Cascadia Code", "Consolas", "Courier New"])
     f.setPixelSize(px)
     if bold: f.setWeight(QFont.Weight.Bold)
+    return f
+
+def title_font(px: int) -> QFont:
+    f = QFont()
+    f.setFamilies(["Cascadia Code", "JetBrains Mono", "Consolas", "Courier New"])
+    f.setPixelSize(px); f.setWeight(QFont.Weight.Bold)
     return f
 
 # =====================================================================
@@ -373,7 +380,7 @@ class DnsWorker(QObject):
         self.log.emit("✓ Latency check complete")
 
 # =====================================================================
-#  BACKGROUND FRAME (noise + vignette)
+#  BACKGROUND FRAME
 # =====================================================================
 _NOISE_PIX: QPixmap | None = None
 
@@ -383,9 +390,9 @@ def _get_noise(w, h) -> QPixmap:
         return _NOISE_PIX
     pix = QPixmap(w, h); pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix); rng = random.Random(42)
-    for _ in range(w * h // 12):
+    for _ in range(w * h // 14):
         x, y = rng.randint(0, w - 1), rng.randint(0, h - 1)
-        v = rng.randint(120, 220); a = rng.randint(2, 6)
+        v = rng.randint(130, 210); a = rng.randint(2, 5)
         p.setPen(QColor(v, v, v, a)); p.drawPoint(x, y)
     p.end(); _NOISE_PIX = pix; return pix
 
@@ -396,9 +403,9 @@ class BgFrame(QWidget):
         p.fillRect(r, QColor(BG))
         p.drawPixmap(0, 0, _get_noise(r.width(), r.height()))
         g = QRadialGradient(r.width() / 2, r.height() / 2, max(r.width(), r.height()) * 0.6)
-        g.setColorAt(0.0, QColor(20, 8, 8, 8))
+        g.setColorAt(0.0, QColor(20, 8, 8, 6))
         g.setColorAt(0.6, QColor(0, 0, 0, 0))
-        g.setColorAt(1.0, QColor(0, 0, 0, 90))
+        g.setColorAt(1.0, QColor(0, 0, 0, 80))
         p.fillRect(r, g); p.end()
 
 # =====================================================================
@@ -413,14 +420,65 @@ class Card(QWidget):
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         p.setBrush(QColor(CARD)); p.setPen(QPen(QColor(BORDER), 1))
         p.drawRoundedRect(r, self._r, self._r)
-        g = QLinearGradient(0, 0, 0, 20)
-        g.setColorAt(0, QColor(255, 255, 255, 4)); g.setColorAt(1, QColor(0, 0, 0, 0))
+        g = QLinearGradient(0, 0, 0, 24)
+        g.setColorAt(0, QColor(255, 255, 255, 5)); g.setColorAt(1, QColor(0, 0, 0, 0))
         p.setBrush(g); p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(r, self._r, self._r)
         p.end()
 
 # =====================================================================
-#  SIDEBAR BUTTON (painted icons)
+#  GLITCH TITLE (animated title with RGB split)
+# =====================================================================
+class GlitchTitle(QWidget):
+    def __init__(self, text, px=17, parent=None):
+        super().__init__(parent)
+        self._text = text; self._px = px
+        self._ox = 0; self._oy = 0; self._glitch = False
+        self._scan = 0.0  # scanline position
+        self.setFixedHeight(px + 8)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedWidth(self._px * len(text) // 2 + 30)
+        t = QTimer(self); t.timeout.connect(self._tick); t.start(70)
+
+    def _tick(self):
+        if random.random() < 0.04:
+            self._glitch = True
+            self._ox = random.choice([-3, -2, -1, 1, 2, 3])
+            self._oy = random.choice([-1, 0, 1])
+        else:
+            self._glitch = False; self._ox = 0; self._oy = 0
+        self._scan = (self._scan + 0.07) % 1.0
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        f = title_font(self._px)
+        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
+        p.setFont(f)
+        r = self.rect()
+        ox, oy = self._ox, self._oy
+
+        if self._glitch:
+            # Red channel offset
+            p.setPen(QColor(255, 0, 0, 90))
+            p.drawText(r.translated(ox + 2, oy), Qt.AlignmentFlag.AlignVCenter, self._text)
+            # Cyan channel offset
+            p.setPen(QColor(0, 200, 220, 50))
+            p.drawText(r.translated(ox - 2, oy), Qt.AlignmentFlag.AlignVCenter, self._text)
+
+        # Main text
+        p.setPen(QColor(TEXT))
+        p.drawText(r.translated(ox, oy), Qt.AlignmentFlag.AlignVCenter, self._text)
+
+        # Subtle scanline
+        scan_y = int(self._scan * self.height())
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255, 6))
+        p.drawRect(0, scan_y, self.width(), 2)
+        p.end()
+
+# =====================================================================
+#  SIDEBAR BUTTON
 # =====================================================================
 class SideBtn(QWidget):
     clicked = Signal()
@@ -442,7 +500,6 @@ class SideBtn(QWidget):
     def paintEvent(self, _):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = self.rect()
-
         if self._active:
             p.fillRect(r, QColor(26, 14, 14))
             p.fillRect(QRectF(0, 6, 2.5, r.height() - 12), QColor(ACCENT))
@@ -451,41 +508,46 @@ class SideBtn(QWidget):
 
         col = QColor(ACCENT) if self._active else (QColor(TEXT2) if self._hover else QColor(TEXT3))
         cx, cy = r.width() / 2, r.height() / 2
-        p.setPen(QPen(col, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        pen = QPen(col, 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
 
         if self._id == "home":
-            s = 4
+            s = 5
             for dx, dy in [(-1, -1), (1, -1), (-1, 1), (1, 1)]:
+                rc = QRectF(cx + dx * 5.5 - s / 2, cy + dy * 5 - s / 2, s, s)
                 p.setBrush(col if self._active else Qt.BrushStyle.NoBrush)
-                p.drawRoundedRect(QRectF(cx + dx * 5 - s / 2, cy + dy * 5 - s / 2, s, s), 1, 1)
+                p.drawRoundedRect(rc, 1.5, 1.5)
             p.setBrush(Qt.BrushStyle.NoBrush)
         elif self._id == "logs":
-            for i, w in enumerate([16, 12, 14]):
+            for i, w in enumerate([16, 12, 15]):
                 y = cy - 6 + i * 6
                 p.drawLine(QPointF(cx - w / 2, y), QPointF(cx + w / 2, y))
         elif self._id == "settings":
-            r2 = 7
             p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawEllipse(QPointF(cx, cy), r2, r2)
-            p.setBrush(col)
+            p.drawEllipse(QPointF(cx, cy), 7.5, 7.5)
+            p.setBrush(col); p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(QPointF(cx, cy), 2.5, 2.5)
+            p.setPen(pen)
+            for angle_deg in range(0, 360, 60):
+                a = math.radians(angle_deg)
+                x1 = cx + 7.5 * math.cos(a); y1 = cy + 7.5 * math.sin(a)
+                x2 = cx + 10 * math.cos(a); y2 = cy + 10 * math.sin(a)
+                p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
         elif self._id == "dns":
-            r2 = 8
+            r2 = 8.5
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawEllipse(QPointF(cx, cy), r2, r2)
             p.drawLine(QPointF(cx - r2, cy), QPointF(cx + r2, cy))
             path = QPainterPath()
-            path.moveTo(cx, cy - r2)
-            path.quadTo(cx - 5, cy, cx, cy + r2)
+            path.moveTo(cx, cy - r2); path.quadTo(cx - 5, cy, cx, cy + r2)
             p.drawPath(path)
             path2 = QPainterPath()
-            path2.moveTo(cx, cy - r2)
-            path2.quadTo(cx + 5, cy, cx, cy + r2)
+            path2.moveTo(cx, cy - r2); path2.quadTo(cx + 5, cy, cx, cy + r2)
             p.drawPath(path2)
         elif self._id == "info":
             p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawEllipse(QPointF(cx, cy), 8, 8)
-            f = ui_font(12, bold=True); p.setFont(f)
+            p.drawEllipse(QPointF(cx, cy), 8.5, 8.5)
+            p.setFont(ui_font(13, bold=True))
             p.drawText(QRect(0, 0, r.width(), r.height()), Qt.AlignmentFlag.AlignCenter, "i")
         p.end()
 
@@ -496,7 +558,7 @@ class StatusBadge(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._on = False; self._phase = 0.0
-        self.setFixedSize(140, 26)
+        self.setFixedSize(148, 28)
         t = QTimer(self); t.timeout.connect(self._tick); t.start(40)
 
     def set_on(self, v): self._on = v; self.update()
@@ -521,25 +583,25 @@ class StatusBadge(QWidget):
             text, text_col = "OFFLINE", QColor(TEXT3)
 
         p.setBrush(bg); p.setPen(QPen(border, 1))
-        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 13, 13)
+        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 14, 14)
 
         p.setBrush(dot_col); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(QPointF(16, 13), 3.5, 3.5)
+        p.drawEllipse(QPointF(16, 14), 3.5, 3.5)
         if self._on:
-            g = QRadialGradient(16, 13, 8)
-            g.setColorAt(0, QColor(255, 60, 60, int(50 * pulse)))
+            g = QRadialGradient(16, 14, 9)
+            g.setColorAt(0, QColor(255, 60, 60, int(55 * pulse)))
             g.setColorAt(1, QColor(0, 0, 0, 0))
-            p.setBrush(g); p.drawEllipse(QPointF(16, 13), 8, 8)
+            p.setBrush(g); p.drawEllipse(QPointF(16, 14), 9, 9)
 
         f = ui_font(10, bold=True)
-        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
+        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.8)
         p.setFont(f); p.setPen(text_col)
-        p.drawText(QRect(28, 0, self.width() - 30, self.height()),
+        p.drawText(QRect(30, 0, self.width() - 32, self.height()),
                    Qt.AlignmentFlag.AlignVCenter, text)
         p.end()
 
 # =====================================================================
-#  POWER BUTTON (replaces eye)
+#  POWER BUTTON
 # =====================================================================
 class PowerButton(QWidget):
     clicked = Signal()
@@ -574,7 +636,6 @@ class PowerButton(QWidget):
                 g.setColorAt(1, QColor(0, 0, 0, 0))
                 p.setBrush(g); p.setPen(Qt.PenStyle.NoPen)
                 p.drawEllipse(QPointF(cx, cy), R + 12 + i * 10, R + 12 + i * 10)
-
             bg = QRadialGradient(cx, cy - 8, R)
             bg.setColorAt(0, QColor(55, 12, 12)); bg.setColorAt(1, QColor(30, 6, 6))
             p.setBrush(bg)
@@ -603,14 +664,16 @@ class PowerButton(QWidget):
         label_y = int(cy + R + 14)
         if self._active:
             p.setPen(QColor(ACCENT2))
-            p.drawText(QRect(0, label_y, self.width(), 20), Qt.AlignmentFlag.AlignHCenter, "ACTIVE")
+            p.drawText(QRect(0, label_y, self.width(), 20),
+                       Qt.AlignmentFlag.AlignHCenter, "ACTIVE")
         else:
             p.setPen(QColor(ACCENT) if self._hover else QColor(TEXT3))
-            p.drawText(QRect(0, label_y, self.width(), 20), Qt.AlignmentFlag.AlignHCenter, "ACTIVATE")
+            p.drawText(QRect(0, label_y, self.width(), 20),
+                       Qt.AlignmentFlag.AlignHCenter, "ACTIVATE")
         p.end()
 
 # =====================================================================
-#  TOGGLE SWITCH (modern pill)
+#  TOGGLE SWITCH
 # =====================================================================
 class ToggleSwitch(QWidget):
     toggled = Signal(bool)
@@ -619,7 +682,7 @@ class ToggleSwitch(QWidget):
         super().__init__(parent)
         self._c = checked; self._label = label; self._hover = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(26)
+        self.setFixedHeight(28)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
     def isChecked(self): return self._c
@@ -632,7 +695,7 @@ class ToggleSwitch(QWidget):
 
     def paintEvent(self, _):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        tw, th = 34, 18
+        tw, th = 36, 20
         ty = (self.height() - th) // 2
         track = QRectF(0, ty, tw, th)
         if self._c:
@@ -647,12 +710,13 @@ class ToggleSwitch(QWidget):
         p.setBrush(QColor(255, 255, 255) if self._c else QColor(TEXT3))
         p.drawEllipse(QPointF(thumb_x, thumb_y), thumb_r, thumb_r)
 
-        p.setFont(ui_font(11))
+        p.setFont(ui_font(12))
         p.setPen(QColor(TEXT) if (self._hover or self._c) else QColor(TEXT2))
-        p.drawText(QRect(tw + 10, 0, 300, self.height()), Qt.AlignmentFlag.AlignVCenter, self._label)
+        p.drawText(QRect(tw + 12, 0, 300, self.height()),
+                   Qt.AlignmentFlag.AlignVCenter, self._label)
         p.end()
 
-    def sizeHint(self): return QSize(200, 26)
+    def sizeHint(self): return QSize(220, 28)
 
 # =====================================================================
 #  TERMINAL
@@ -667,9 +731,9 @@ class Terminal(QTextEdit):
             QTextEdit {{
                 background: #101014; color: {TEXT2};
                 border: 1px solid {BORDER}; border-radius: 8px;
-                padding: 10px 12px;
+                padding: 10px 14px;
                 font-family: 'JetBrains Mono','Cascadia Code','Consolas',monospace;
-                font-size: {sz}px; line-height: 1.6;
+                font-size: {sz}px; line-height: 1.65;
             }}
             QScrollBar:vertical {{
                 background: #101014; width: 6px; border: none; border-radius: 3px;
@@ -719,6 +783,10 @@ class Btn(QPushButton):
         self.setFixedHeight(36)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setStyleSheet("border:none;background:transparent;")
+        # Auto-size: measure text and add padding
+        fm = self.fontMetrics()
+        text_w = fm.horizontalAdvance(text) + 40
+        self.setMinimumWidth(max(text_w, 90))
 
     def enterEvent(self, _): self._hover = True; self.update()
     def leaveEvent(self, _): self._hover = False; self.update()
@@ -731,13 +799,12 @@ class Btn(QPushButton):
             bg = QColor(40, 12, 12) if self._hover else QColor(28, 8, 8)
             bc = QColor(ACCENT) if self._hover else QColor(ACCENT_DK)
         else:
-            bg = QColor(26, 26, 34) if self._hover else QColor(CARD)
+            bg = QColor(28, 28, 38) if self._hover else QColor(CARD)
             bc = QColor(TEXT3) if self._hover else QColor(BORDER)
         p.setBrush(bg); p.setPen(QPen(bc, 1))
-        p.drawRoundedRect(r, 6, 6)
+        p.drawRoundedRect(r, 7, 7)
 
-        f = ui_font(10, bold=True)
-        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
+        f = ui_font(11, bold=True)
         p.setFont(f)
         col = QColor(ACCENT2) if (self._hover and self._accent) else \
               QColor(TEXT) if self._hover else QColor(TEXT2)
@@ -746,7 +813,7 @@ class Btn(QPushButton):
         p.end()
 
 # =====================================================================
-#  DNS CARD
+#  DNS CARD (with flash animation on apply)
 # =====================================================================
 class DnsCard(QWidget):
     selected = Signal(str)
@@ -757,16 +824,31 @@ class DnsCard(QWidget):
         self._name = name; self._ip1 = ip1; self._ip2 = ip2
         self._latency: float | None = None
         self._checking = False; self._sel = False; self._hover = False
-        self.setMinimumWidth(100); self.setFixedHeight(80)
+        self._applied = False   # currently active DNS
+        self._flash = 0.0       # flash animation 1.0→0.0
+        self.setMinimumWidth(100); self.setFixedHeight(84)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._flash_tmr = QTimer(self)
+        self._flash_tmr.timeout.connect(self._flash_tick)
 
     def set_latency(self, ms): self._latency = ms; self._checking = False; self.update()
     def set_checking(self): self._checking = True; self.update()
     def set_selected(self, v): self._sel = v; self.update()
+    def set_applied(self, v):
+        self._applied = v
+        if v:
+            self._flash = 1.0
+            self._flash_tmr.start(25)
+        self.update()
     def enterEvent(self, _): self._hover = True; self.update()
     def leaveEvent(self, _): self._hover = False; self.update()
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton: self.selected.emit(self._name)
+
+    def _flash_tick(self):
+        self._flash = max(0.0, self._flash - 0.04)
+        if self._flash <= 0: self._flash_tmr.stop()
+        self.update()
 
     def _lat_color(self, ms: float) -> QColor:
         if ms < 50: return QColor(GREEN)
@@ -778,23 +860,50 @@ class DnsCard(QWidget):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
 
-        bg = QColor(30, 14, 14) if self._sel else (QColor(26, 26, 34) if self._hover else QColor(CARD))
-        bc = QColor(ACCENT) if self._sel else (QColor(TEXT3) if self._hover else QColor(BORDER))
-        p.setBrush(bg); p.setPen(QPen(bc, 1))
+        # Flash glow
+        if self._flash > 0:
+            glow = QRadialGradient(self.width() / 2, self.height() / 2,
+                                   max(self.width(), self.height()) * 0.6)
+            glow.setColorAt(0, QColor(76, 175, 80, int(60 * self._flash)))
+            glow.setColorAt(1, QColor(0, 0, 0, 0))
+            p.setBrush(glow); p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(r.adjusted(-4, -4, 4, 4), 12, 12)
+
+        bg = QColor(30, 14, 14) if self._sel else (QColor(28, 28, 38) if self._hover else QColor(CARD))
+        if self._applied: bc = QColor(GREEN)
+        elif self._sel: bc = QColor(ACCENT)
+        elif self._hover: bc = QColor(TEXT3)
+        else: bc = QColor(BORDER)
+        bw = 1.5 if (self._applied or self._sel) else 1
+        p.setBrush(bg); p.setPen(QPen(bc, bw))
         p.drawRoundedRect(r, 8, 8)
 
-        if self._sel:
-            p.fillRect(QRectF(1, 12, 2.5, r.height() - 22), QColor(ACCENT))
+        # Applied indicator
+        if self._applied:
+            p.fillRect(QRectF(1, 10, 3, r.height() - 18), QColor(GREEN))
+        elif self._sel:
+            p.fillRect(QRectF(1, 10, 3, r.height() - 18), QColor(ACCENT))
 
-        p.setFont(ui_font(11, bold=True))
-        p.setPen(QColor(TEXT) if self._sel else (QColor(TEXT) if self._hover else QColor(TEXT2)))
-        p.drawText(QRect(12, 8, self.width() - 14, 18), Qt.AlignmentFlag.AlignLeft, self._name)
+        # Name
+        p.setFont(ui_font(12, bold=True))
+        name_col = QColor(GREEN2) if self._applied else \
+                   (QColor(TEXT) if (self._sel or self._hover) else QColor(TEXT2))
+        p.setPen(name_col)
+        p.drawText(QRect(12, 8, self.width() - 14, 20), Qt.AlignmentFlag.AlignLeft, self._name)
 
-        p.setFont(mono_font(9))
-        p.setPen(QColor(TEXT3))
-        p.drawText(QRect(12, 24, self.width() - 14, 14), Qt.AlignmentFlag.AlignLeft, self._ip1)
+        # Applied badge
+        if self._applied:
+            badge_f = ui_font(8, bold=True)
+            p.setFont(badge_f); p.setPen(QColor(GREEN))
+            p.drawText(QRect(12, 8, self.width() - 20, 20),
+                       Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, "ACTIVE")
 
-        bar_x, bar_y, bar_h = 12, 42, 6
+        # IP
+        p.setFont(mono_font(9)); p.setPen(QColor(TEXT3))
+        p.drawText(QRect(12, 26, self.width() - 14, 14), Qt.AlignmentFlag.AlignLeft, self._ip1)
+
+        # Latency bar
+        bar_x, bar_y, bar_h = 12, 44, 6
         bar_w = self.width() - 24
         p.setBrush(QColor(18, 18, 24)); p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), 3, 3)
@@ -806,19 +915,21 @@ class DnsCard(QWidget):
             fill = min(1.0, self._latency / self.MAX_MS)
             col = self._lat_color(self._latency)
             g = QLinearGradient(bar_x, 0, bar_x + bar_w * fill, 0)
-            g.setColorAt(0, col); g.setColorAt(1, QColor(col.red() // 2, col.green() // 2, col.blue() // 2))
+            g.setColorAt(0, col)
+            g.setColorAt(1, QColor(col.red() // 2, col.green() // 2, col.blue() // 2))
             p.setBrush(g)
             p.drawRoundedRect(QRectF(bar_x, bar_y, bar_w * fill, bar_h), 3, 3)
 
+        # Latency text
         p.setFont(mono_font(9, bold=True))
         if self._checking:
-            p.setPen(QColor(TEXT3)); txt = "..."
+            p.setPen(QColor(TEXT3)); txt = "checking..."
         elif self._latency is None:
             p.setPen(QColor(TEXT3)); txt = "—"
         else:
             p.setPen(self._lat_color(self._latency))
             txt = f"{self._latency:.0f} ms"
-        p.drawText(QRect(12, 52, self.width() - 14, 18), Qt.AlignmentFlag.AlignLeft, txt)
+        p.drawText(QRect(12, 54, self.width() - 14, 18), Qt.AlignmentFlag.AlignLeft, txt)
         p.end()
 
 # =====================================================================
@@ -828,32 +939,39 @@ class TitleBar(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self._win = parent; self._drag = QPoint()
-        self.setFixedHeight(42)
+        self.setFixedHeight(44)
         self.setStyleSheet(f"background:{SURFACE};")
         lay = QHBoxLayout(self); lay.setContentsMargins(0, 0, 8, 0); lay.setSpacing(0)
-        lay.addSpacing(54)
+        lay.addSpacing(56)
 
         div = QFrame(); div.setFrameShape(QFrame.Shape.VLine)
         div.setStyleSheet(f"color:{BORDER}; max-width:1px;"); lay.addWidget(div)
         lay.addSpacing(14)
 
-        title = QLabel(f"0bx0d?")
-        title.setFont(ui_font(15, bold=True))
-        title.setStyleSheet(f"color:{TEXT};"); lay.addWidget(title)
+        self._gtitle = GlitchTitle("0bx0d?", 17)
+        lay.addWidget(self._gtitle)
+        lay.addSpacing(10)
 
-        ver = QLabel(f"v{VERSION}")
-        ver.setStyleSheet(f"color:{TEXT3}; font-size:9px; font-family:monospace; margin-left:8px;")
-        lay.addWidget(ver); lay.addStretch()
+        # Version pill badge
+        ver = QLabel(f" v{VERSION} ")
+        ver.setFont(mono_font(9))
+        ver.setFixedHeight(18)
+        ver.setStyleSheet(
+            f"color:{TEXT3}; background:{CARD}; border:1px solid {BORDER};"
+            "border-radius:9px; padding:0 6px;")
+        ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(ver, 0, Qt.AlignmentFlag.AlignVCenter)
+        lay.addStretch()
 
         self._badge = StatusBadge(); lay.addWidget(self._badge)
-        lay.addSpacing(12)
+        lay.addSpacing(14)
 
         for sym, slot in [("—", parent.showMinimized), ("✕", parent.close)]:
-            btn = QPushButton(sym); btn.setFixedSize(30, 30)
+            btn = QPushButton(sym); btn.setFixedSize(32, 32)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet(
                 f"QPushButton{{background:transparent;color:{TEXT3};border:none;"
-                "font-size:13px;font-weight:700;border-radius:4px;}"
+                "font-size:14px;font-weight:700;border-radius:5px;}"
                 f"QPushButton:hover{{background:{BORDER};color:{TEXT};}}")
             btn.clicked.connect(slot); lay.addWidget(btn)
 
@@ -872,7 +990,7 @@ class TitleBar(QWidget):
 # =====================================================================
 def section_label(text: str) -> QLabel:
     lbl = QLabel(text)
-    f = ui_font(10, bold=True)
+    f = ui_font(11, bold=True)
     f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2)
     lbl.setFont(f)
     lbl.setStyleSheet(f"color:{TEXT3};")
@@ -883,6 +1001,14 @@ def hdiv() -> QFrame:
     f.setStyleSheet(f"color:{BORDER}; max-height:1px;")
     return f
 
+def info_row(label: str, value: str) -> QHBoxLayout:
+    h = QHBoxLayout(); h.setSpacing(12)
+    l = QLabel(label); l.setFont(ui_font(11, bold=True)); l.setStyleSheet(f"color:{TEXT3};")
+    l.setFixedWidth(120); h.addWidget(l)
+    v = QLabel(value); v.setFont(ui_font(11)); v.setStyleSheet(f"color:{TEXT2};")
+    v.setWordWrap(True); h.addWidget(v, 1)
+    return h
+
 # =====================================================================
 #  GLOBAL STYLESHEET
 # =====================================================================
@@ -891,20 +1017,20 @@ QSS = f"""
 QWidget {{ background: transparent; }}
 QComboBox {{
     background: {CARD}; color: {TEXT}; border: 1px solid {BORDER};
-    border-radius: 6px; padding: 6px 12px;
-    font-family: 'Segoe UI','Inter','Roboto',sans-serif; font-size: 12px;
+    border-radius: 6px; padding: 7px 14px;
+    font-family: 'Segoe UI','Inter','Roboto',sans-serif; font-size: 13px;
 }}
-QComboBox::drop-down {{ border: none; width: 24px; }}
+QComboBox::drop-down {{ border: none; width: 26px; }}
 QComboBox::down-arrow {{ image: none; }}
 QComboBox QAbstractItemView {{
     background: {CARD}; color: {TEXT}; border: 1px solid {BORDER};
     selection-background-color: {BORDER}; selection-color: {ACCENT2};
-    font-family: 'Segoe UI',sans-serif; outline: none; padding: 4px;
+    font-family: 'Segoe UI',sans-serif; font-size: 13px; outline: none; padding: 4px;
 }}
 QScrollBar:horizontal {{ height: 0; }}
 QToolTip {{
     background: {CARD}; color: {TEXT}; border: 1px solid {BORDER};
-    font-family: 'Segoe UI',sans-serif; padding: 5px; font-size: 11px;
+    font-family: 'Segoe UI',sans-serif; padding: 6px 8px; font-size: 12px;
 }}
 """
 
@@ -915,10 +1041,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setMinimumSize(780, 560); self.resize(820, 600)
+        self.setMinimumSize(800, 580); self.resize(840, 620)
         self.setWindowTitle("0bx0d?")
         self._on = False; self._ping = None
         self._dns_sel: str | None = None
+        self._dns_applied: str | None = None
         self._setup_ui(); self._setup_workers()
         QTimer.singleShot(250, self._startup)
 
@@ -929,7 +1056,7 @@ class MainWindow(QMainWindow):
         sb = QWidget(); sb.setFixedWidth(54)
         sb.setStyleSheet(f"background:{SURFACE};")
         sl = QVBoxLayout(sb); sl.setContentsMargins(0, 0, 0, 0); sl.setSpacing(2)
-        sl.addSpacing(44)
+        sl.addSpacing(46)
         self._sbs = [
             SideBtn("home", "Dashboard"),
             SideBtn("logs", "Session Logs"),
@@ -972,13 +1099,13 @@ class MainWindow(QMainWindow):
         rc = Card(radius=10); rc_vl = QVBoxLayout(rc)
         rc_vl.setContentsMargins(18, 16, 18, 16); rc_vl.setSpacing(10)
 
-        src_btn = Btn("VIEW SOURCE", accent=True); src_btn.setFixedHeight(42)
+        src_btn = Btn("View Source", accent=True); src_btn.setFixedHeight(42)
         src_btn.clicked.connect(
             lambda: __import__("webbrowser").open("https://github.com/Freezonplay070/0bx0d"))
         rc_vl.addWidget(src_btn)
 
-        sub = QLabel("open source DPI bypass tool")
-        sub.setFont(ui_font(10)); sub.setStyleSheet(f"color:{TEXT3};")
+        sub = QLabel("Open source DPI bypass tool")
+        sub.setFont(ui_font(11)); sub.setStyleSheet(f"color:{TEXT3};")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter); rc_vl.addWidget(sub)
 
         rc_vl.addWidget(hdiv())
@@ -990,20 +1117,20 @@ class MainWindow(QMainWindow):
         vl.addLayout(top)
 
         lc = Card(radius=10); lc_vl = QVBoxLayout(lc)
-        lc_vl.setContentsMargins(14, 10, 14, 10); lc_vl.setSpacing(6)
+        lc_vl.setContentsMargins(14, 12, 14, 12); lc_vl.setSpacing(6)
         lc_vl.addWidget(section_label("LIVE LOGS"))
         self._term = Terminal(compact=True)
         self._term.setMinimumHeight(110); self._term.setMaximumHeight(150)
         lc_vl.addWidget(self._term)
         vl.addWidget(lc)
 
-        bot = QHBoxLayout(); bot.setSpacing(20)
+        bot = QHBoxLayout(); bot.setSpacing(24)
         self._auto = ToggleSwitch("Autostart", get_autostart())
         self._auto.toggled.connect(set_autostart)
         self._ks = ToggleSwitch("Kill Switch", True)
         bot.addWidget(self._auto); bot.addWidget(self._ks); bot.addStretch()
         bl = QLabel("by solevoyq")
-        bl.setFont(ui_font(9)); bl.setStyleSheet(f"color:{TEXT3};")
+        bl.setFont(ui_font(10)); bl.setStyleSheet(f"color:{TEXT3};")
         bot.addWidget(bl)
         vl.addLayout(bot)
         return page
@@ -1019,11 +1146,11 @@ class MainWindow(QMainWindow):
     # -- SETTINGS --
     def _build_sett(self) -> QWidget:
         page = QWidget()
-        vl = QVBoxLayout(page); vl.setContentsMargins(24, 20, 24, 16); vl.setSpacing(12)
+        vl = QVBoxLayout(page); vl.setContentsMargins(24, 20, 24, 16); vl.setSpacing(14)
         vl.addWidget(section_label("SETTINGS")); vl.addWidget(hdiv())
 
         c1 = Card(radius=10); c1l = QVBoxLayout(c1)
-        c1l.setContentsMargins(18, 16, 18, 16); c1l.setSpacing(12)
+        c1l.setContentsMargins(20, 18, 20, 18); c1l.setSpacing(14)
 
         c1l.addWidget(section_label("STARTUP"))
         a2 = ToggleSwitch("Launch on Windows login", get_autostart())
@@ -1036,6 +1163,15 @@ class MainWindow(QMainWindow):
         k2.toggled.connect(self._ks.setChecked)
         c1l.addWidget(k2)
         vl.addWidget(c1)
+
+        c2 = Card(radius=10); c2l = QVBoxLayout(c2)
+        c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(8)
+        c2l.addWidget(section_label("PRESETS INFO"))
+        for name, data in PRESETS.items():
+            desc = QLabel(f"{name}  →  mode: {data['mode']}")
+            desc.setFont(ui_font(11)); desc.setStyleSheet(f"color:{TEXT2};")
+            c2l.addWidget(desc)
+        vl.addWidget(c2)
 
         vl.addStretch()
         info = QLabel(f"0bx0d? v{VERSION}  ·  GoodbyeDPI v0.2.2  ·  MIT License")
@@ -1050,17 +1186,17 @@ class MainWindow(QMainWindow):
 
         h = QHBoxLayout()
         h.addWidget(section_label("DNS MANAGER")); h.addStretch()
-        ref = Btn("Refresh"); ref.setFixedWidth(90); ref.clicked.connect(self._dns_refresh)
-        chk = Btn("Check All", accent=True); chk.setFixedWidth(100)
+        ref = Btn("Refresh"); ref.clicked.connect(self._dns_refresh)
+        chk = Btn("Check All", accent=True)
         chk.clicked.connect(self._dns_check_all)
         h.addWidget(ref); h.addSpacing(6); h.addWidget(chk)
         vl.addLayout(h); vl.addWidget(hdiv())
 
         ac = Card(radius=8); acl = QHBoxLayout(ac)
-        acl.setContentsMargins(14, 10, 14, 10); acl.setSpacing(10)
+        acl.setContentsMargins(16, 10, 16, 10); acl.setSpacing(12)
         al = QLabel("Adapter")
-        al.setFont(ui_font(10, bold=True)); al.setStyleSheet(f"color:{TEXT3};")
-        al.setFixedWidth(60); acl.addWidget(al)
+        al.setFont(ui_font(11, bold=True)); al.setStyleSheet(f"color:{TEXT3};")
+        al.setFixedWidth(65); acl.addWidget(al)
         self._adapter = QComboBox()
         self._adapter.addItems(get_adapters())
         self._adapter.currentTextChanged.connect(self._dns_show_current)
@@ -1082,7 +1218,7 @@ class MainWindow(QMainWindow):
         vl.addWidget(grid_w)
 
         self._orig_lbl = QLabel("Original DNS not saved yet")
-        self._orig_lbl.setFont(ui_font(9)); self._orig_lbl.setStyleSheet(f"color:{TEXT3};")
+        self._orig_lbl.setFont(ui_font(10)); self._orig_lbl.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(self._orig_lbl)
 
         ab = QHBoxLayout(); ab.setSpacing(8)
@@ -1102,39 +1238,92 @@ class MainWindow(QMainWindow):
 
     # -- ABOUT --
     def _build_info(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet(
+            f"QScrollArea{{border:none;background:transparent;}}"
+            f"QScrollBar:vertical{{background:transparent;width:6px;border:none;}}"
+            f"QScrollBar::handle:vertical{{background:{BORDER};border-radius:3px;}}"
+            f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}}")
+
         page = QWidget()
         vl = QVBoxLayout(page); vl.setContentsMargins(28, 24, 28, 20); vl.setSpacing(16)
 
+        # Header
         title = QLabel("0bx0d?")
-        title.setFont(ui_font(28, bold=True))
+        title.setFont(title_font(30))
         title.setStyleSheet(f"color:{ACCENT};"); vl.addWidget(title)
+        subtitle = QLabel("Open source DPI bypass tool for Windows")
+        subtitle.setFont(ui_font(13)); subtitle.setStyleSheet(f"color:{TEXT2};")
+        vl.addWidget(subtitle)
 
-        c = Card(radius=10); cl = QVBoxLayout(c)
-        cl.setContentsMargins(20, 18, 20, 18); cl.setSpacing(10)
-        cl.addWidget(section_label("HOW IT WORKS"))
+        # How it works
+        c1 = Card(radius=10); c1l = QVBoxLayout(c1)
+        c1l.setContentsMargins(20, 18, 20, 18); c1l.setSpacing(10)
+        c1l.addWidget(section_label("HOW IT WORKS"))
         desc = QLabel(
-            "GoodbyeDPI intercepts TCP/UDP packets via the WinDivert driver "
-            "and modifies headers — fragmentation, wrong checksums, fake ACKs — "
-            "so that ISP deep packet inspection can't reassemble the stream.\n\n"
-            "Discord Voice uses UDP on ports 50000–65535. "
-            "The tool targets Discord CDN domains via a blacklist file passed to GoodbyeDPI."
+            "GoodbyeDPI intercepts TCP/UDP packets at the kernel level via "
+            "the WinDivert driver and modifies their headers — fragmentation, "
+            "wrong checksums, fake ACK packets — so that your ISP's deep "
+            "packet inspection (DPI) system can't correctly reassemble the "
+            "stream and lets the connection through unblocked.\n\n"
+            "When you select a Discord preset, the tool writes target domains "
+            "(discord.com, discordapp.com, etc.) to a temporary blacklist file "
+            "and passes it to GoodbyeDPI via the --blacklist flag. This ensures "
+            "only Discord traffic is intercepted, leaving everything else untouched."
         )
         desc.setWordWrap(True)
-        desc.setFont(ui_font(11)); desc.setStyleSheet(f"color:{TEXT2}; line-height:1.5;")
-        cl.addWidget(desc)
-        vl.addWidget(c)
+        desc.setFont(ui_font(12)); desc.setStyleSheet(f"color:{TEXT2};")
+        c1l.addWidget(desc)
+        vl.addWidget(c1)
 
+        # Features
+        c2 = Card(radius=10); c2l = QVBoxLayout(c2)
+        c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(6)
+        c2l.addWidget(section_label("FEATURES"))
+        features = [
+            "4 presets: Discord Only, Discord + Game, All Traffic, Stealth",
+            "Kill switch: auto-restarts GoodbyeDPI if it crashes",
+            "DNS Manager: change system DNS with latency checker",
+            "Save & restore original DNS settings",
+            "Autostart: launch on Windows login",
+            "Frameless custom UI with dark theme",
+            "Network status monitoring (discord.com ping)",
+        ]
+        for feat in features:
+            fl = QLabel(f"  •  {feat}")
+            fl.setFont(ui_font(11)); fl.setStyleSheet(f"color:{TEXT2};")
+            fl.setWordWrap(True); c2l.addWidget(fl)
+        vl.addWidget(c2)
+
+        # Tech info
+        c3 = Card(radius=10); c3l = QVBoxLayout(c3)
+        c3l.setContentsMargins(20, 18, 20, 18); c3l.setSpacing(6)
+        c3l.addWidget(section_label("TECHNICAL DETAILS"))
+        c3l.addLayout(info_row("Engine", "GoodbyeDPI v0.2.2 by ValdikSS"))
+        c3l.addLayout(info_row("Driver", "WinDivert (kernel-level packet interception)"))
+        c3l.addLayout(info_row("Framework", "PySide6 (Qt for Python)"))
+        c3l.addLayout(info_row("Platform", "Windows 10 / 11 (x64, requires admin)"))
+        c3l.addLayout(info_row("DNS Check", "Raw UDP query to google.com (port 53)"))
+        c3l.addLayout(info_row("License", "MIT — free and open source"))
+        vl.addWidget(c3)
+
+        # Links
         brow = QHBoxLayout(); brow.setSpacing(8)
-        gh = Btn("GitHub →", accent=True); gh.setFixedWidth(120)
+        gh = Btn("GitHub", accent=True)
         gh.clicked.connect(lambda: __import__("webbrowser").open("https://github.com/Freezonplay070/0bx0d"))
-        brow.addWidget(gh); brow.addStretch()
+        gdpi = Btn("GoodbyeDPI")
+        gdpi.clicked.connect(lambda: __import__("webbrowser").open("https://github.com/ValdikSS/GoodbyeDPI"))
+        brow.addWidget(gh); brow.addWidget(gdpi); brow.addStretch()
         vl.addLayout(brow)
-        vl.addStretch()
 
         ft = QLabel(f"v{VERSION}  ·  by solevoyq  ·  MIT  ·  not malware, just raw code")
-        ft.setFont(ui_font(9)); ft.setStyleSheet(f"color:{TEXT3};")
+        ft.setFont(ui_font(10)); ft.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(ft)
-        return page
+        vl.addSpacing(8)
+
+        scroll.setWidget(page)
+        return scroll
 
     # -- Workers --
     def _setup_workers(self):
@@ -1166,7 +1355,8 @@ class MainWindow(QMainWindow):
         admin = is_admin()
         self._log(f"Init: {APP_NAME}? v{VERSION} booting...")
         self._log(f"{'✓' if admin else '✗'} admin: {'OK' if admin else 'MISSING — restart as admin'}")
-        miss = [f for f in ("goodbyedpi.exe", "WinDivert.dll", "WinDivert64.sys") if not (BIN_DIR / f).exists()]
+        miss = [f for f in ("goodbyedpi.exe", "WinDivert.dll", "WinDivert64.sys")
+                if not (BIN_DIR / f).exists()]
         for f in miss: self._log(f"✗ missing: {f}")
         if not miss: self._log("✓ driver files: OK")
         try:
@@ -1226,14 +1416,23 @@ class MainWindow(QMainWindow):
         save_original_dns(adapter)
         p, s = DNS_SERVERS[self._dns_sel]
         self._dw.apply(adapter, p, s)
+        # Mark applied card
+        self._dns_applied = self._dns_sel
+        for n, c in self._dns_cards.items():
+            c.set_applied(n == self._dns_sel)
 
     def _dns_restore(self):
         self._dw.reset(self._adapter.currentText())
+        # Clear applied state
+        self._dns_applied = None
+        for c in self._dns_cards.values(): c.set_applied(False)
 
     def _dns_reset_dhcp(self):
         adapter = self._adapter.currentText()
         _original_dns.pop(adapter, None)
         self._dw.reset(adapter)
+        self._dns_applied = None
+        for c in self._dns_cards.values(): c.set_applied(False)
 
     def _dns_done(self, ok, msg):
         self._dns_log.queue_line(msg)
