@@ -177,6 +177,26 @@ td .actions{display:flex;gap:6px}
       </div>
     </div>
 
+    <!-- Custom Key -->
+    <div class="card">
+      <h3>Add Custom Key</h3>
+      <div class="gen-row">
+        <input id="custom-key" type="text" placeholder="0BX0D-XXXXX-XXXXX-XXXXX-XXXXX" style="flex:2">
+        <select id="custom-plan">
+          <option value="1d">1 Day</option>
+          <option value="1w">1 Week</option>
+          <option value="1m" selected>1 Month</option>
+          <option value="3m">3 Months</option>
+          <option value="6m">6 Months</option>
+          <option value="1y">1 Year</option>
+          <option value="2y">2 Years</option>
+          <option value="lifetime">Lifetime</option>
+        </select>
+        <input id="custom-note" type="text" placeholder="Note (optional)">
+        <button class="btn btn-accent" onclick="addCustomKey()">Add</button>
+      </div>
+    </div>
+
     <!-- New key display (hidden by default) -->
     <div id="new-key-card" class="card key-display" style="display:none">
       <p class="warn">Save this key now! It will NOT be shown again.</p>
@@ -319,6 +339,25 @@ async function genKey() {
   document.getElementById('new-key-card').style.display = 'block';
   document.getElementById('copy-ok').classList.remove('show');
   document.getElementById('gen-note').value = '';
+  loadKeys();
+}
+
+async function addCustomKey() {
+  const key  = document.getElementById('custom-key').value.trim().toUpperCase();
+  const plan = document.getElementById('custom-plan').value;
+  const note = document.getElementById('custom-note').value.trim();
+  if (!key || !key.startsWith('0BX0D-') || key.length < 20) {
+    alert('Invalid key format. Must start with 0BX0D-'); return;
+  }
+  const hash = await sha256(key);
+  const now  = Math.floor(Date.now() / 1000);
+  const exp  = plan === 'lifetime' ? 0 : now + DURATIONS[plan];
+  await db.ref('keys/' + hash).set({
+    active: true, plan: plan, created: now, expires: exp, note: note || 'custom'
+  });
+  document.getElementById('custom-key').value = '';
+  document.getElementById('custom-note').value = '';
+  alert('Key added: ' + key);
   loadKeys();
 }
 
