@@ -105,7 +105,7 @@ DNS_SERVERS = {
 #  LICENSE SYSTEM
 # =====================================================================
 # -- PASTE YOUR FIREBASE DATABASE URL BELOW --
-FIREBASE_DB_URL  = "https://PASTE_YOUR_PROJECT-default-rtdb.firebaseio.com"
+FIREBASE_DB_URL  = "https://obxod-64191-default-rtdb.europe-west1.firebasedatabase.app"
 LICENSE_REG_KEY  = r"Software\0bx0d\License"
 OFFLINE_GRACE    = 7 * 86400  # 7 days offline grace period
 
