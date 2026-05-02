@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.6"
+VERSION  = "3.7"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -1216,7 +1216,7 @@ class ToggleSwitch(QWidget):
         ty = (self.height() - th) // 2
         track = QRectF(0, ty, tw, th)
         if self._disabled:
-            p.setBrush(QColor("#15151d")); p.setPen(QPen(QColor("#252530"), 1))
+            p.setBrush(QColor("#1c1c28")); p.setPen(QPen(QColor("#303040"), 1))
         elif self._c:
             p.setBrush(QColor(ACCENT)); p.setPen(Qt.PenStyle.NoPen)
         else:
@@ -1227,7 +1227,7 @@ class ToggleSwitch(QWidget):
         thumb_x = tw - thumb_r - 4 if self._c else thumb_r + 4
         thumb_y = ty + th / 2
         if self._disabled:
-            p.setBrush(QColor("#222230"))
+            p.setBrush(QColor("#2e2e3c"))
         elif self._c:
             p.setBrush(QColor(255, 255, 255))
         else:
@@ -1236,7 +1236,7 @@ class ToggleSwitch(QWidget):
 
         p.setFont(ui_font(12))
         if self._disabled:
-            p.setPen(QColor("#333340"))
+            p.setPen(QColor("#50505e"))
         elif self._hover or self._c:
             p.setPen(QColor(TEXT))
         else:
@@ -1517,12 +1517,13 @@ class TitleBar(QWidget):
 # =====================================================================
 #  HELPERS
 # =====================================================================
-def section_label(text: str) -> QLabel:
+def section_label(text: str, bright: bool = False) -> QLabel:
     lbl = QLabel(text)
     f = ui_font(11, bold=True)
     f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2)
     lbl.setFont(f)
-    lbl.setStyleSheet(f"color:{TEXT3};")
+    color = TEXT2 if bright else TEXT3
+    lbl.setStyleSheet(f"color:{color};")
     return lbl
 
 def hdiv() -> QFrame:
@@ -1790,6 +1791,14 @@ class MainWindow(QMainWindow):
 
     # -- SETTINGS --
     def _build_sett(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet(
+            f"QScrollArea{{border:none;background:transparent;}}"
+            f" QScrollBar:vertical{{width:6px;background:transparent;}}"
+            f" QScrollBar::handle:vertical{{background:{BORDER};border-radius:3px;}}"
+            f" QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}}"
+        )
         page = QWidget()
         vl = QVBoxLayout(page); vl.setContentsMargins(24, 20, 24, 16); vl.setSpacing(14)
         vl.addWidget(section_label(tr("settings"))); vl.addWidget(hdiv())
@@ -1797,7 +1806,7 @@ class MainWindow(QMainWindow):
         c1 = Card(radius=10); c1l = QVBoxLayout(c1)
         c1l.setContentsMargins(20, 18, 20, 18); c1l.setSpacing(14)
 
-        c1l.addWidget(section_label(tr("startup")))
+        c1l.addWidget(section_label(tr("startup"), bright=True))
         a2 = ToggleSwitch(tr("launch_on_login"), get_autostart())
         a2.toggled.connect(lambda on: (set_autostart(on), self._auto.setChecked(on),
                                         self._auto_act.setDisabled(not on)))
@@ -1811,7 +1820,7 @@ class MainWindow(QMainWindow):
         c1l.addWidget(a3)
 
         c1l.addWidget(hdiv())
-        c1l.addWidget(section_label(tr("protection")))
+        c1l.addWidget(section_label(tr("protection"), bright=True))
         k2 = ToggleSwitch(tr("auto_restart"), True)
         k2.toggled.connect(self._ks.setChecked)
         c1l.addWidget(k2)
@@ -1820,7 +1829,7 @@ class MainWindow(QMainWindow):
         # Language
         cl = Card(radius=10); cll = QVBoxLayout(cl)
         cll.setContentsMargins(20, 18, 20, 18); cll.setSpacing(10)
-        cll.addWidget(section_label(tr("language")))
+        cll.addWidget(section_label(tr("language"), bright=True))
         lang_row = QHBoxLayout(); lang_row.setSpacing(8)
         self._lang_combo = QComboBox()
         self._lang_combo.addItems(["English", "Русский"])
@@ -1833,7 +1842,7 @@ class MainWindow(QMainWindow):
         # Updates
         cu = Card(radius=10); cul = QVBoxLayout(cu)
         cul.setContentsMargins(20, 18, 20, 18); cul.setSpacing(10)
-        cul.addWidget(section_label(tr("updates")))
+        cul.addWidget(section_label(tr("updates"), bright=True))
         self._upd_ver = QLabel(tr("current_version", ver=VERSION))
         self._upd_ver.setFont(ui_font(11)); self._upd_ver.setStyleSheet(f"color:{TEXT2};")
         cul.addWidget(self._upd_ver)
@@ -1849,7 +1858,7 @@ class MainWindow(QMainWindow):
 
         c2 = Card(radius=10); c2l = QVBoxLayout(c2)
         c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(8)
-        c2l.addWidget(section_label(tr("presets_info")))
+        c2l.addWidget(section_label(tr("presets_info"), bright=True))
         for name, data in PRESETS.items():
             info = data.get("desc", data["mode"])
             desc = QLabel(f"{name}\n    {info}")
@@ -1862,7 +1871,8 @@ class MainWindow(QMainWindow):
         info = QLabel(f"0bx0d? v{VERSION}  ·  GoodbyeDPI v0.2.2  ·  MIT License")
         info.setFont(ui_font(10)); info.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(info)
-        return page
+        scroll.setWidget(page)
+        return scroll
 
     # -- DNS --
     def _build_dns(self) -> QWidget:
