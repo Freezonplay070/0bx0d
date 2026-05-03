@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.1"
+VERSION  = "4.2"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -354,7 +354,7 @@ ZAPRET_PRESETS = {
         "engine": "zapret",
         "desc": "fake TLS + split SNI + QUIC fake (best for RU)",
         "args": [
-            "--wf-tcp=443", "--wf-udp=443,50000-65535",
+            "--wf-tcp-out=443", "--wf-udp-out=443,50000-65535",
             "--filter-tcp=443", "--filter-l7=tls",
             "--payload=tls_client_hello",
             "--lua-desync=fake:blob=fake_tls:tcp_md5",
@@ -377,7 +377,7 @@ ZAPRET_PRESETS = {
         "engine": "zapret",
         "desc": "UDP desync for Voice/RTC (STUN/Discord)",
         "args": [
-            "--wf-tcp=443", "--wf-udp=443,50000-65535",
+            "--wf-tcp-out=443", "--wf-udp-out=443,50000-65535",
             "--filter-tcp=443", "--filter-l7=tls",
             "--payload=tls_client_hello",
             "--lua-desync=fake:blob=fake_tls:tcp_md5:tcp_seq=-10000",
@@ -400,7 +400,7 @@ ZAPRET_PRESETS = {
         "engine": "zapret",
         "desc": "HTTP + TLS + QUIC bypass (all sites)",
         "args": [
-            "--wf-tcp=80,443", "--wf-udp=443",
+            "--wf-tcp-out=80,443", "--wf-udp-out=443",
             "--filter-tcp=80", "--filter-l7=http",
             "--payload=http_req",
             "--lua-desync=fake:blob=0x00000000000000000000:tcp_md5",
@@ -1996,7 +1996,7 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True); clual.addWidget(hint)
         self._custom_lua_edit = QTextEdit()
         self._custom_lua_edit.setPlaceholderText(
-            '--wf-tcp=443 --wf-udp=443,50000-65535\n'
+            '--wf-tcp-out=443 --wf-udp-out=443,50000-65535\n'
             '--filter-tcp=443 --filter-l7=tls --payload=tls_client_hello\n'
             '--lua-desync=fake:blob=0x00:tcp_md5\n'
             '--lua-desync=multisplit:pos=1,midsld')
