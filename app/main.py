@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """0bx0d? -- DPI bypass tool v3.4"""
 import ctypes, hashlib, json, math, os, random, shutil, socket, struct, subprocess, sys
-import tempfile, time, winreg, zipfile
+import tempfile, time, webbrowser, winreg, zipfile
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.3"
+VERSION  = "4.4"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -1907,7 +1907,7 @@ class MainWindow(QMainWindow):
 
         src_btn = Btn(tr("view_source"), accent=True); src_btn.setFixedHeight(42)
         src_btn.clicked.connect(
-            lambda: __import__("webbrowser").open("https://github.com/Freezonplay070/0bx0d"))
+            lambda: webbrowser.open("https://github.com/Freezonplay070/0bx0d"))
         rc_vl.addWidget(src_btn)
 
         sub = QLabel(tr("open_source_tool"))
@@ -2180,9 +2180,9 @@ class MainWindow(QMainWindow):
         # Links
         brow = QHBoxLayout(); brow.setSpacing(8)
         gh = Btn("GitHub", accent=True)
-        gh.clicked.connect(lambda: __import__("webbrowser").open("https://github.com/Freezonplay070/0bx0d"))
+        gh.clicked.connect(lambda: webbrowser.open("https://github.com/Freezonplay070/0bx0d"))
         gdpi = Btn("GoodbyeDPI")
-        gdpi.clicked.connect(lambda: __import__("webbrowser").open("https://github.com/ValdikSS/GoodbyeDPI"))
+        gdpi.clicked.connect(lambda: webbrowser.open("https://github.com/ValdikSS/GoodbyeDPI"))
         brow.addWidget(gh); brow.addWidget(gdpi); brow.addStretch()
         vl.addLayout(brow)
 
