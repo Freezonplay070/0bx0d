@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "3.9"
+VERSION  = "4.0"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -327,9 +327,17 @@ PRESETS = {
     },
     "Discord (Russia — Simple Fake)": {
         "mode": "DISCORD",
-        "desc": "frag + wrong-chksum + DNS (if -9 fails)",
-        "args": ["-p","-r","-s","-f","2","-k","2","-n","-e","2",
-                 "--wrong-chksum",
+        "desc": "wrong-seq + wrong-chksum + frag (lite -9)",
+        "args": ["-p","-r","-s","-e","2",
+                 "--wrong-chksum","--wrong-seq",
+                 "--dns-addr","77.88.8.8","--dns-port","1253",
+                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
+    },
+    "Discord (Russia — Auto-TTL)": {
+        "mode": "DISCORD",
+        "desc": "auto-ttl + frag-by-SNI + DNS (alt strategy)",
+        "args": ["-p","-r","-s","-e","2",
+                 "--auto-ttl","1-4-10","--frag-by-sni",
                  "--dns-addr","77.88.8.8","--dns-port","1253",
                  "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
     },
