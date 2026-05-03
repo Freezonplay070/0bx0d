@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.4"
+VERSION  = "4.4.1"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -664,6 +664,15 @@ def apply_update(zip_path: str) -> bool:
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(tmp_dir)
 
+        # ZIP may contain a single wrapper folder (e.g. "0bx0d/0bx0d.exe")
+        # Detect it and use the inner folder as the copy source
+        src_dir = tmp_dir
+        children = os.listdir(tmp_dir)
+        if len(children) == 1:
+            candidate = os.path.join(tmp_dir, children[0])
+            if os.path.isdir(candidate):
+                src_dir = candidate
+
         # Build the batch updater script
         # Key: wait in a loop until the EXE is actually gone, then robocopy
         bat_path = os.path.join(tempfile.gettempdir(), "0bx0d_updater.bat")
@@ -679,10 +688,10 @@ if not errorlevel 1 (
     goto waitloop
 )
 echo [0bx0d] App closed. Copying files...
-xcopy /s /y /q "{tmp_dir}\\*" "{app_dir}\\" >nul 2>&1
+xcopy /s /y /q "{src_dir}\\*" "{app_dir}\\" >nul 2>&1
 if errorlevel 1 (
     echo [0bx0d] xcopy failed, trying robocopy...
-    robocopy "{tmp_dir}" "{app_dir}" /s /is /it /r:3 /w:1 >nul 2>&1
+    robocopy "{src_dir}" "{app_dir}" /s /is /it /r:3 /w:1 >nul 2>&1
 )
 echo [0bx0d] Restarting...
 start "" "{exe_path}"
