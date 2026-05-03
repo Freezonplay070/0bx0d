@@ -25,9 +25,10 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.2"
+VERSION  = "4.3"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
+ZAPRET_V1  = BIN_DIR / "zapret-v1"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 # -- palette --
@@ -425,6 +426,11 @@ ZAPRET_PRESETS = {
         "desc": "user-defined script (edit in settings)",
         "args": [],
         "custom": True,
+    },
+    "Discord (Flowseal — SIMPLE FAKE)": {
+        "engine": "flowseal",
+        "desc": "Flowseal v1 — tested on RU ISPs (best compat)",
+        "args": [],
     },
 }
 
@@ -840,7 +846,9 @@ class TunnelWorker(QObject):
         if not p:
             p = list(PRESETS.values())[0]
         engine = p.get("engine", "gdpi")
-        if engine == "zapret":
+        if engine == "flowseal":
+            cmd = self._build_flowseal_cmd()
+        elif engine == "zapret":
             cmd = self._build_zapret_cmd(p, custom_args)
         else:
             cmd = [str(BIN_DIR / "goodbyedpi.exe")] + p["args"] + _blacklist_args(p.get("mode", "ALL"))
@@ -863,8 +871,39 @@ class TunnelWorker(QObject):
             cmd += preset.get("args", [])
         return cmd
 
+    def _build_flowseal_cmd(self) -> list[str]:
+        d = ZAPRET_V1
+        exe = str(d / "winws.exe")
+        bl = str(d / "lists" / "list-general.txt")
+        gl = str(d / "lists" / "list-google.txt")
+        fq = str(d / "fake" / "quic_initial_www_google_com.bin")
+        fd = str(d / "fake" / "quic_initial_dbankcloud_ru.bin")
+        ft = str(d / "fake" / "tls_clienthello_www_google_com.bin")
+        fs = str(d / "fake" / "stun.bin")
+        fm = str(d / "fake" / "tls_clienthello_max_ru.bin")
+        return [exe,
+            "--wf-tcp=80,443", "--wf-udp=443,19294-19344,50000-50100",
+            "--filter-udp=443", f"--hostlist={bl}",
+            "--dpi-desync=fake", "--dpi-desync-repeats=6",
+            f"--dpi-desync-fake-quic={fq}", "--new",
+            "--filter-udp=19294-19344,50000-50100",
+            "--filter-l7=discord,stun",
+            "--dpi-desync=fake", "--dpi-desync-repeats=6",
+            f"--dpi-desync-fake-discord={fd}",
+            f"--dpi-desync-fake-stun={fd}", "--new",
+            "--filter-tcp=443", f"--hostlist={gl}",
+            "--dpi-desync=fake", "--dpi-desync-repeats=6",
+            "--dpi-desync-fooling=ts",
+            f"--dpi-desync-fake-tls={ft}", "--new",
+            "--filter-tcp=80,443", f"--hostlist={bl}",
+            "--dpi-desync=fake", "--dpi-desync-repeats=6",
+            "--dpi-desync-fooling=ts",
+            f"--dpi-desync-fake-tls={ft}",
+            f"--dpi-desync-fake-http={fm}",
+        ]
+
     def _kill_old(self):
-        targets = {"goodbyedpi.exe", "winws2.exe"}
+        targets = {"goodbyedpi.exe", "winws2.exe", "winws.exe"}
         for proc in psutil.process_iter(["name", "pid"]):
             try:
                 if (proc.info["name"] or "").lower() in targets:
@@ -1878,7 +1917,7 @@ class MainWindow(QMainWindow):
         rc_vl.addWidget(hdiv())
         rc_vl.addWidget(section_label(tr("engine")))
         self._engine_combo = QComboBox()
-        self._engine_combo.addItems(["GoodbyeDPI", "Zapret"])
+        self._engine_combo.addItems(["GoodbyeDPI", "Zapret v2", "Zapret Flowseal"])
         self._engine_combo.currentIndexChanged.connect(self._on_engine_change)
         rc_vl.addWidget(self._engine_combo)
         rc_vl.addSpacing(4)
@@ -2297,8 +2336,12 @@ class MainWindow(QMainWindow):
         self._preset.clear()
         if idx == 0:
             self._preset.addItems(list(PRESETS.keys()))
+        elif idx == 1:
+            self._preset.addItems([k for k, v in ZAPRET_PRESETS.items()
+                                   if v.get("engine") == "zapret"])
         else:
-            self._preset.addItems(list(ZAPRET_PRESETS.keys()))
+            self._preset.addItems([k for k, v in ZAPRET_PRESETS.items()
+                                   if v.get("engine") == "flowseal"])
 
     # -- Tunnel --
     def _toggle(self):
