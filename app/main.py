@@ -25,8 +25,9 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.0"
+VERSION  = "4.1"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
+ZAPRET_DIR = BIN_DIR / "zapret"
 REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 # -- palette --
@@ -76,7 +77,11 @@ _STRINGS = {
     "view_source":        {"en": "View Source",     "ru": "Исходный код"},
     "open_source_tool":   {"en": "Open source DPI bypass tool",
                            "ru": "DPI bypass с открытым кодом"},
+    "engine":             {"en": "ENGINE",           "ru": "ДВИЖОК"},
     "preset":             {"en": "PRESET",          "ru": "ПРЕСЕТ"},
+    "custom_lua":         {"en": "CUSTOM LUA ARGS", "ru": "СВОЙ LUA СКРИПТ"},
+    "custom_lua_hint":    {"en": "winws2 args for Custom preset",
+                           "ru": "Аргументы winws2 для кастомного пресета"},
     "live_logs":          {"en": "LIVE LOGS",       "ru": "ЛОГИ"},
     "autostart":          {"en": "Autostart",       "ru": "Автозапуск"},
     "kill_switch":        {"en": "Kill Switch",     "ru": "Kill Switch"},
@@ -340,6 +345,86 @@ PRESETS = {
                  "--auto-ttl","1-4-10","--frag-by-sni",
                  "--dns-addr","77.88.8.8","--dns-port","1253",
                  "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
+    },
+}
+
+# -- Zapret engine presets --
+ZAPRET_PRESETS = {
+    "Discord (Zapret — recommended)": {
+        "engine": "zapret",
+        "desc": "fake TLS + split SNI + QUIC fake (best for RU)",
+        "args": [
+            "--wf-tcp=443", "--wf-udp=443,50000-65535",
+            "--filter-tcp=443", "--filter-l7=tls",
+            "--payload=tls_client_hello",
+            "--lua-desync=fake:blob=fake_tls:tcp_md5",
+            "--lua-desync=multisplit:pos=1,midsld",
+            "--new",
+            "--filter-udp=443", "--filter-l7=quic",
+            "--payload=quic_initial",
+            "--lua-desync=fake:blob=fake_quic:repeats=6",
+            "--new",
+            "--filter-udp=50000-65535",
+            "--lua-desync=fake:blob=fake_stun:repeats=2",
+        ],
+        "blobs": {
+            "fake_tls": "fake/tls_clienthello_iana_org.bin",
+            "fake_quic": "fake/quic_initial_www_google_com.bin",
+            "fake_stun": "fake/stun.bin",
+        },
+    },
+    "Discord (Zapret — Voice Fix)": {
+        "engine": "zapret",
+        "desc": "UDP desync for Voice/RTC (STUN/Discord)",
+        "args": [
+            "--wf-tcp=443", "--wf-udp=443,50000-65535",
+            "--filter-tcp=443", "--filter-l7=tls",
+            "--payload=tls_client_hello",
+            "--lua-desync=fake:blob=fake_tls:tcp_md5:tcp_seq=-10000",
+            "--lua-desync=multidisorder:pos=1,midsld",
+            "--new",
+            "--filter-udp=443", "--filter-l7=quic",
+            "--payload=quic_initial",
+            "--lua-desync=fake:blob=fake_quic:repeats=6",
+            "--new",
+            "--filter-udp=50000-65535",
+            "--lua-desync=fake:blob=fake_discord:repeats=4",
+        ],
+        "blobs": {
+            "fake_tls": "fake/tls_clienthello_iana_org.bin",
+            "fake_quic": "fake/quic_initial_www_google_com.bin",
+            "fake_discord": "fake/discord-ip-discovery-with-port.bin",
+        },
+    },
+    "All Traffic (Zapret)": {
+        "engine": "zapret",
+        "desc": "HTTP + TLS + QUIC bypass (all sites)",
+        "args": [
+            "--wf-tcp=80,443", "--wf-udp=443",
+            "--filter-tcp=80", "--filter-l7=http",
+            "--payload=http_req",
+            "--lua-desync=fake:blob=0x00000000000000000000:tcp_md5",
+            "--lua-desync=multisplit:pos=method+2",
+            "--new",
+            "--filter-tcp=443", "--filter-l7=tls",
+            "--payload=tls_client_hello",
+            "--lua-desync=fake:blob=fake_tls:tcp_md5",
+            "--lua-desync=multisplit:pos=1,midsld",
+            "--new",
+            "--filter-udp=443", "--filter-l7=quic",
+            "--payload=quic_initial",
+            "--lua-desync=fake:blob=fake_quic:repeats=6",
+        ],
+        "blobs": {
+            "fake_tls": "fake/tls_clienthello_iana_org.bin",
+            "fake_quic": "fake/quic_initial_www_google_com.bin",
+        },
+    },
+    "Custom Lua Script": {
+        "engine": "zapret",
+        "desc": "user-defined script (edit in settings)",
+        "args": [],
+        "custom": True,
     },
 }
 
@@ -750,15 +835,39 @@ class TunnelWorker(QObject):
         self._cmd = []; self._ks = False
         self._go.connect(self._start)
 
-    def launch(self, preset_name: str, ks: bool):
-        p = PRESETS.get(preset_name, list(PRESETS.values())[0])
-        cmd = [str(BIN_DIR / "goodbyedpi.exe")] + p["args"] + _blacklist_args(p["mode"])
+    def launch(self, preset_name: str, ks: bool, custom_args: str = ""):
+        p = PRESETS.get(preset_name) or ZAPRET_PRESETS.get(preset_name)
+        if not p:
+            p = list(PRESETS.values())[0]
+        engine = p.get("engine", "gdpi")
+        if engine == "zapret":
+            cmd = self._build_zapret_cmd(p, custom_args)
+        else:
+            cmd = [str(BIN_DIR / "goodbyedpi.exe")] + p["args"] + _blacklist_args(p.get("mode", "ALL"))
+        self._engine = engine
         self._go.emit(cmd, ks)
 
+    def _build_zapret_cmd(self, preset: dict, custom_args: str = "") -> list[str]:
+        exe = str(ZAPRET_DIR / "winws2.exe")
+        lua_dir = str(ZAPRET_DIR / "lua")
+        cmd = [exe,
+               f"--lua-init=@{lua_dir}/zapret-lib.lua",
+               f"--lua-init=@{lua_dir}/zapret-antidpi.lua"]
+        if preset.get("custom") and custom_args.strip():
+            import shlex
+            cmd += shlex.split(custom_args)
+        else:
+            # Add blob references
+            for name, fpath in preset.get("blobs", {}).items():
+                cmd += [f"--blob={name}:@{ZAPRET_DIR / fpath}"]
+            cmd += preset.get("args", [])
+        return cmd
+
     def _kill_old(self):
+        targets = {"goodbyedpi.exe", "winws2.exe"}
         for proc in psutil.process_iter(["name", "pid"]):
             try:
-                if (proc.info["name"] or "").lower() == "goodbyedpi.exe":
+                if (proc.info["name"] or "").lower() in targets:
                     proc.kill(); proc.wait(3)
             except: pass
 
@@ -1767,6 +1876,12 @@ class MainWindow(QMainWindow):
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter); rc_vl.addWidget(sub)
 
         rc_vl.addWidget(hdiv())
+        rc_vl.addWidget(section_label(tr("engine")))
+        self._engine_combo = QComboBox()
+        self._engine_combo.addItems(["GoodbyeDPI", "Zapret"])
+        self._engine_combo.currentIndexChanged.connect(self._on_engine_change)
+        rc_vl.addWidget(self._engine_combo)
+        rc_vl.addSpacing(4)
         rc_vl.addWidget(section_label(tr("preset")))
         self._preset = QComboBox()
         self._preset.addItems(list(PRESETS.keys()))
@@ -1872,19 +1987,42 @@ class MainWindow(QMainWindow):
         cul.addLayout(upd_row)
         vl.addWidget(cu)
 
+        # Custom Lua args
+        clua = Card(radius=10); clual = QVBoxLayout(clua)
+        clual.setContentsMargins(20, 18, 20, 18); clual.setSpacing(10)
+        clual.addWidget(section_label(tr("custom_lua"), bright=True))
+        hint = QLabel(tr("custom_lua_hint"))
+        hint.setFont(ui_font(10)); hint.setStyleSheet(f"color:{TEXT3};")
+        hint.setWordWrap(True); clual.addWidget(hint)
+        self._custom_lua_edit = QTextEdit()
+        self._custom_lua_edit.setPlaceholderText(
+            '--wf-tcp=443 --wf-udp=443,50000-65535\n'
+            '--filter-tcp=443 --filter-l7=tls --payload=tls_client_hello\n'
+            '--lua-desync=fake:blob=0x00:tcp_md5\n'
+            '--lua-desync=multisplit:pos=1,midsld')
+        self._custom_lua_edit.setFont(ui_font(10))
+        self._custom_lua_edit.setMaximumHeight(120)
+        self._custom_lua_edit.setStyleSheet(
+            f"QTextEdit{{background:#101014;color:{TEXT2};border:1px solid {BORDER};"
+            f"border-radius:6px;padding:8px;}}")
+        clual.addWidget(self._custom_lua_edit)
+        vl.addWidget(clua)
+
         c2 = Card(radius=10); c2l = QVBoxLayout(c2)
         c2l.setContentsMargins(20, 18, 20, 18); c2l.setSpacing(8)
         c2l.addWidget(section_label(tr("presets_info"), bright=True))
-        for name, data in PRESETS.items():
-            info = data.get("desc", data["mode"])
-            desc = QLabel(f"{name}\n    {info}")
+        all_presets = list(PRESETS.items()) + list(ZAPRET_PRESETS.items())
+        for name, data in all_presets:
+            info = data.get("desc", "custom")
+            engine_tag = "[Zapret] " if data.get("engine") == "zapret" else "[GDPI] "
+            desc = QLabel(f"{engine_tag}{name}\n    {info}")
             desc.setWordWrap(True)
             desc.setFont(ui_font(10)); desc.setStyleSheet(f"color:{TEXT2};")
             c2l.addWidget(desc)
         vl.addWidget(c2)
 
         vl.addStretch()
-        info = QLabel(f"0bx0d? v{VERSION}  ·  GoodbyeDPI v0.2.3rc3  ·  MIT License")
+        info = QLabel(f"0bx0d? v{VERSION}  ·  GoodbyeDPI v0.2.3rc3 + Zapret v0.9.5  ·  MIT License")
         info.setFont(ui_font(10)); info.setStyleSheet(f"color:{TEXT3};")
         vl.addWidget(info)
         scroll.setWidget(page)
@@ -2155,10 +2293,21 @@ class MainWindow(QMainWindow):
         else:
             self._log(tr("awaiting"))
 
+    def _on_engine_change(self, idx):
+        self._preset.clear()
+        if idx == 0:
+            self._preset.addItems(list(PRESETS.keys()))
+        else:
+            self._preset.addItems(list(ZAPRET_PRESETS.keys()))
+
     # -- Tunnel --
     def _toggle(self):
         if self._on: self._tw.stop()
-        else: self._tw.launch(self._preset.currentText(), self._ks.isChecked())
+        else:
+            custom = getattr(self, '_custom_lua_edit', None)
+            custom_args = custom.toPlainText() if custom else ""
+            self._tw.launch(self._preset.currentText(),
+                            self._ks.isChecked(), custom_args)
 
     def _on_start(self):
         self._on = True; self._pwr.set_active(True)
