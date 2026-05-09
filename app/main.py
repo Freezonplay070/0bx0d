@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.5.2"
+VERSION  = "4.6"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -368,6 +368,14 @@ ZAPRET_PRESETS = {
     "Discord+YouTube — FAKE TLS AUTO": {
         "engine": "flowseal", "strategy": "fake_tls_auto",
         "desc": "fake+multidisorder + badseq + rnd,dupsid,sni",
+    },
+    "Discord+YouTube — MGTS": {
+        "engine": "flowseal", "strategy": "mgts",
+        "desc": "МГТС Москва: autottl + md5sig + tamper UDP",
+    },
+    "Discord+YouTube — Anti-Drop": {
+        "engine": "flowseal", "strategy": "anti_drop",
+        "desc": "repeats=2 for ISPs that drop many fakes",
     },
 }
 
@@ -837,28 +845,61 @@ class TunnelWorker(QObject):
 
         strategy = preset.get("strategy", "simple_fake")
 
-        # Common: WinDivert filter + UDP Discord voice chain (same for all)
+        # Common: WinDivert filter + UDP Discord voice chain
         cmd = [exe,
             "--wf-tcp=80,443,2053,2083,2087,2096,8443",
-            "--wf-udp=443,19294-19344,50000-50100",
+            "--wf-udp=443,19294-19344,50000-65535",
         ]
         # Chain 1: QUIC UDP 443 with hostlist
-        cmd += [
-            f"--filter-udp=443", f"--hostlist={bl}",
-            f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
-            "--dpi-desync=fake", "--dpi-desync-repeats=6",
-            f"--dpi-desync-fake-quic={fq}", "--new",
-        ]
-        # Chain 2: Discord Voice UDP (19294-19344, 50000-50100)
-        cmd += [
-            "--filter-udp=19294-19344,50000-50100",
-            "--filter-l7=discord,stun",
-            "--dpi-desync=fake", "--dpi-desync-repeats=6",
-            f"--dpi-desync-fake-discord={fd}",
-            f"--dpi-desync-fake-stun={fd}", "--new",
-        ]
-        # Chain 3: discord.media TCP ports
-        if strategy == "default":
+        if strategy == "mgts":
+            cmd += [
+                f"--filter-udp=443", f"--hostlist={bl}",
+                "--dpi-desync=fake", "--dpi-desync-udplen-increment=10",
+                "--dpi-desync-repeats=6", "--dpi-desync-udplen-pattern=0xDEADBEEF",
+                f"--dpi-desync-fake-quic={fq}", "--new",
+            ]
+        else:
+            cmd += [
+                f"--filter-udp=443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake",
+                f"--dpi-desync-repeats={'2' if strategy == 'anti_drop' else '6'}",
+                f"--dpi-desync-fake-quic={fq}", "--new",
+            ]
+        # Chain 2: Discord Voice UDP (19294-19344, 50000-65535)
+        if strategy == "mgts":
+            cmd += [
+                "--filter-udp=50000-65535",
+                "--dpi-desync=fake,tamper", "--dpi-desync-any-protocol",
+                "--dpi-desync-repeats=6",
+                f"--dpi-desync-fake-quic={fq}", "--new",
+                "--filter-udp=19294-19344",
+                "--filter-l7=discord,stun",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                f"--dpi-desync-fake-discord={fd}",
+                f"--dpi-desync-fake-stun={fd}", "--new",
+            ]
+        else:
+            cmd += [
+                "--filter-udp=19294-19344,50000-65535",
+                "--filter-l7=discord,stun",
+                "--dpi-desync=fake",
+                f"--dpi-desync-repeats={'2' if strategy == 'anti_drop' else '6'}",
+                "--dpi-desync-cutoff=d3",
+                f"--dpi-desync-fake-discord={fd}",
+                f"--dpi-desync-fake-stun={fd}", "--new",
+            ]
+        # Chain 3: discord.media TCP ports (CRITICAL for voice on MGTS)
+        if strategy == "mgts":
+            cmd += [
+                "--filter-tcp=443,2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=split", "--dpi-desync-split-pos=1",
+                "--dpi-desync-autottl", "--dpi-desync-fooling=badseq",
+                "--dpi-desync-repeats=8",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        elif strategy == "default":
             cmd += [
                 "--filter-tcp=2053,2083,2087,2096,8443",
                 "--hostlist-domains=discord.media",
@@ -901,16 +942,24 @@ class TunnelWorker(QObject):
                 "--dpi-desync-fooling=badseq", "--dpi-desync-badseq-increment=2",
                 f"--dpi-desync-fake-tls={ft}", "--new",
             ]
-        else:  # simple_fake
+        else:  # simple_fake, anti_drop
             cmd += [
                 "--filter-tcp=2053,2083,2087,2096,8443",
                 "--hostlist-domains=discord.media",
-                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync=fake",
+                f"--dpi-desync-repeats={'2' if strategy == 'anti_drop' else '6'}",
                 "--dpi-desync-fooling=ts",
                 f"--dpi-desync-fake-tls={ft}", "--new",
             ]
-        # Chain 4: Google TCP 443
-        if strategy == "default":
+        # Chain 4: Google/YouTube TCP 443
+        if strategy == "mgts":
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}",
+                "--dpi-desync=fake", "--dpi-desync-autottl=2",
+                "--dpi-desync-fooling=md5sig", "--dpi-desync-repeats=6",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        elif strategy == "default":
             cmd += [
                 f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
                 "--dpi-desync=multisplit",
@@ -948,15 +997,24 @@ class TunnelWorker(QObject):
                 "--dpi-desync-fooling=badseq", "--dpi-desync-badseq-increment=2",
                 f"--dpi-desync-fake-tls={ft}", "--new",
             ]
-        else:  # simple_fake
+        else:  # simple_fake, anti_drop
             cmd += [
                 f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
-                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync=fake",
+                f"--dpi-desync-repeats={'2' if strategy == 'anti_drop' else '6'}",
                 "--dpi-desync-fooling=ts",
                 f"--dpi-desync-fake-tls={ft}", "--new",
             ]
         # Chain 5: General TCP hostlist
-        if strategy == "default":
+        if strategy == "mgts":
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-autottl=2", "--dpi-desync-fooling=md5sig",
+                f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}", "--new",
+            ]
+        elif strategy == "default":
             cmd += [
                 f"--filter-tcp=80,443", f"--hostlist={bl}",
                 f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
@@ -1002,25 +1060,36 @@ class TunnelWorker(QObject):
                 f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
                 f"--dpi-desync-fake-http={fm}", "--new",
             ]
-        else:  # simple_fake
+        else:  # simple_fake, anti_drop
             cmd += [
                 f"--filter-tcp=80,443", f"--hostlist={bl}",
                 f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
-                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync=fake",
+                f"--dpi-desync-repeats={'2' if strategy == 'anti_drop' else '6'}",
                 "--dpi-desync-fooling=ts",
                 f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
                 f"--dpi-desync-fake-http={fm}", "--new",
             ]
         # Chain 6: ipset UDP 443
+        reps = '6'
+        if strategy == 'fake_tls_auto': reps = '11'
+        elif strategy == 'anti_drop': reps = '2'
         cmd += [
             f"--filter-udp=443", f"--ipset={ip}",
             f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
-            "--dpi-desync=fake",
-            f"--dpi-desync-repeats={'11' if strategy == 'fake_tls_auto' else '6'}",
+            "--dpi-desync=fake", f"--dpi-desync-repeats={reps}",
             f"--dpi-desync-fake-quic={fq}", "--new",
         ]
         # Chain 7: ipset TCP
-        if strategy == "default":
+        if strategy == "mgts":
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-autottl=2", "--dpi-desync-fooling=md5sig",
+                f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}",
+            ]
+        elif strategy == "default":
             cmd += [
                 f"--filter-tcp=80,443,8443", f"--ipset={ip}",
                 f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
@@ -2216,6 +2285,27 @@ class MainWindow(QMainWindow):
         cul.addLayout(upd_row)
         vl.addWidget(cu)
 
+        # Voice Fix Tools
+        cv = Card(radius=10); cvl = QVBoxLayout(cv)
+        cvl.setContentsMargins(20, 18, 20, 18); cvl.setSpacing(10)
+        cvl.addWidget(section_label("VOICE FIX TOOLS", bright=True))
+        hint_v = QLabel("For MGTS and ISPs where voice doesn't work")
+        hint_v.setFont(ui_font(10)); hint_v.setStyleSheet(f"color:{TEXT3};")
+        hint_v.setWordWrap(True); cvl.addWidget(hint_v)
+        tools_row = QHBoxLayout(); tools_row.setSpacing(8)
+        self._tls13_btn = Btn("Disable TLS 1.3")
+        self._tls13_btn.clicked.connect(self._toggle_tls13)
+        tools_row.addWidget(self._tls13_btn)
+        self._hosts_btn = Btn("Update Discord Hosts")
+        self._hosts_btn.clicked.connect(self._update_discord_hosts)
+        tools_row.addWidget(self._hosts_btn)
+        tools_row.addStretch()
+        cvl.addLayout(tools_row)
+        self._tools_status = QLabel("")
+        self._tools_status.setFont(ui_font(10)); self._tools_status.setStyleSheet(f"color:{TEXT3};")
+        self._tools_status.setWordWrap(True); cvl.addWidget(self._tools_status)
+        vl.addWidget(cv)
+
         # Custom Lua args
         clua = Card(radius=10); clual = QVBoxLayout(clua)
         clual.setContentsMargins(20, 18, 20, 18); clual.setSpacing(10)
@@ -2497,6 +2587,103 @@ class MainWindow(QMainWindow):
             self._upd_status.setText(tr("update_failed"))
             self._upd_status.setStyleSheet(f"color:{ACCENT2};")
             self._upd_btn.setEnabled(True)
+
+    # -- Voice Fix Tools --
+    def _toggle_tls13(self):
+        """Toggle TLS 1.3 disable/enable via registry (MGTS fix)."""
+        import winreg as wr
+        key_path = r"SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.3\Client"
+        try:
+            # Check current state
+            try:
+                k = wr.OpenKey(wr.HKEY_LOCAL_MACHINE, key_path, 0, wr.KEY_READ)
+                disabled = wr.QueryValueEx(k, "DisabledByDefault")[0]
+                wr.CloseKey(k)
+            except FileNotFoundError:
+                disabled = 0
+            if disabled:
+                # Re-enable: delete the key
+                try:
+                    k = wr.OpenKey(wr.HKEY_LOCAL_MACHINE, key_path, 0,
+                                  wr.KEY_SET_VALUE | wr.KEY_WRITE)
+                    wr.SetValueEx(k, "DisabledByDefault", 0, wr.REG_DWORD, 0)
+                    wr.SetValueEx(k, "Enabled", 0, wr.REG_DWORD, 1)
+                    wr.CloseKey(k)
+                    self._tools_status.setText("✅ TLS 1.3 enabled. Restart browser/Discord.")
+                    self._tools_status.setStyleSheet(f"color:#4caf50;")
+                except PermissionError:
+                    self._tools_status.setText("❌ Run as Administrator to change TLS settings")
+                    self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+            else:
+                # Disable TLS 1.3
+                try:
+                    wr.CreateKeyEx(wr.HKEY_LOCAL_MACHINE, key_path, 0,
+                                   wr.KEY_SET_VALUE | wr.KEY_WRITE)
+                    k = wr.OpenKey(wr.HKEY_LOCAL_MACHINE, key_path, 0,
+                                  wr.KEY_SET_VALUE | wr.KEY_WRITE)
+                    wr.SetValueEx(k, "DisabledByDefault", 0, wr.REG_DWORD, 1)
+                    wr.SetValueEx(k, "Enabled", 0, wr.REG_DWORD, 0)
+                    wr.CloseKey(k)
+                    self._tools_status.setText("✅ TLS 1.3 disabled (MGTS fix). Restart browser/Discord.")
+                    self._tools_status.setStyleSheet(f"color:#4caf50;")
+                except PermissionError:
+                    self._tools_status.setText("❌ Run as Administrator to change TLS settings")
+                    self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+        except Exception as e:
+            self._tools_status.setText(f"❌ {e}")
+            self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+
+    def _update_discord_hosts(self):
+        """Download Discord voice server IPs and add to hosts file."""
+        hosts_url = "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/refs/heads/main/.service/hosts"
+        hosts_file = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                                  "System32", "drivers", "etc", "hosts")
+        try:
+            self._tools_status.setText("Downloading Discord hosts...")
+            self._tools_status.setStyleSheet(f"color:{TEXT3};")
+            req = urllib.request.Request(hosts_url,
+                  headers={"User-Agent": f"0bx0d/{VERSION}"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                new_entries = resp.read().decode("utf-8", "replace").strip()
+            if not new_entries:
+                self._tools_status.setText("❌ Empty response from server")
+                self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+                return
+            # Read current hosts
+            try:
+                with open(hosts_file, "r", encoding="utf-8") as f:
+                    current = f.read()
+            except PermissionError:
+                self._tools_status.setText("❌ Run as Administrator to update hosts file")
+                self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+                return
+            # Check if already present
+            first_line = new_entries.split("\n")[0].strip()
+            if first_line and first_line in current:
+                self._tools_status.setText("✅ Discord hosts already up to date")
+                self._tools_status.setStyleSheet(f"color:#4caf50;")
+                return
+            # Remove old discord entries if any
+            marker = "# 0bx0d discord voice hosts"
+            if marker in current:
+                before = current.split(marker)[0]
+                parts = current.split(marker)
+                after = parts[2] if len(parts) > 2 else ""
+                current = before + after
+            # Append
+            try:
+                with open(hosts_file, "w", encoding="utf-8") as f:
+                    f.write(current.rstrip() + "\n\n" + marker + "\n" +
+                            new_entries + "\n" + marker + "\n")
+                count = len([l for l in new_entries.split("\n") if l.strip() and not l.startswith("#")])
+                self._tools_status.setText(f"✅ Added {count} Discord voice host entries")
+                self._tools_status.setStyleSheet(f"color:#4caf50;")
+            except PermissionError:
+                self._tools_status.setText("❌ Run as Administrator to update hosts file")
+                self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+        except Exception as e:
+            self._tools_status.setText(f"❌ {e}")
+            self._tools_status.setStyleSheet(f"color:{ACCENT2};")
 
     def _on_autostart_toggle(self, on: bool):
         set_autostart(on)
