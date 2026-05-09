@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.5.1"
+VERSION  = "4.5.2"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -890,6 +890,7 @@ class TunnelWorker(QObject):
                 "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
                 "--dpi-desync-fooling=badseq",
                 "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls=!",
                 "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com", "--new",
             ]
         elif strategy == "simple_fake_alt":
@@ -937,6 +938,7 @@ class TunnelWorker(QObject):
                 "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
                 "--dpi-desync-fooling=badseq",
                 "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls=!",
                 "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com", "--new",
             ]
         elif strategy == "simple_fake_alt":
@@ -987,6 +989,7 @@ class TunnelWorker(QObject):
                 "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
                 "--dpi-desync-fooling=badseq",
                 "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls=!",
                 "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com",
                 f"--dpi-desync-fake-http={fm}", "--new",
             ]
@@ -1050,6 +1053,7 @@ class TunnelWorker(QObject):
                 "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
                 "--dpi-desync-fooling=badseq",
                 "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls=!",
                 "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com",
                 f"--dpi-desync-fake-http={fm}",
             ]
