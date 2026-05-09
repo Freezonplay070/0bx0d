@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.4.1"
+VERSION  = "4.5"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -292,66 +292,30 @@ def _ensure_blacklist_file() -> str:
 # For Russia: -9 + DNS redir to Yandex 77.88.8.8:1253 (official script)
 # For aggressive TSPU: add --set-ttl or --auto-ttl + --frag-by-sni
 PRESETS = {
-    "Discord (Russia — recommended)": {
+    "Discord+YouTube (Russia — recommended)": {
         "mode": "DISCORD",
         "desc": "-9 + Yandex DNS (official RU config)",
         "args": ["-9",
                  "--dns-addr","77.88.8.8","--dns-port","1253",
                  "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
     },
-    "Discord (Russia — TTL)": {
+    "Discord+YouTube (Russia — TTL)": {
         "mode": "DISCORD",
         "desc": "-9 + auto-TTL + frag-by-SNI (stronger)",
         "args": ["-9","--auto-ttl","1-4-10","--frag-by-sni",
                  "--dns-addr","77.88.8.8","--dns-port","1253",
                  "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
     },
-    "Discord (Russia — Aggressive)": {
-        "mode": "DISCORD",
-        "desc": "-9 + set-ttl 4 + fake packets (max bypass)",
-        "args": ["-9","--set-ttl","4","--frag-by-sni",
-                 "--fake-gen","5","--fake-resend","3",
-                 "--dns-addr","77.88.8.8","--dns-port","1253",
-                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
-    },
-    "Discord (Standard)": {
+    "Discord+YouTube (Standard)": {
         "mode": "DISCORD",
         "desc": "-9 default (non-Russia)",
         "args": ["-9"],
-    },
-    "All Traffic (Russia)": {
-        "mode": "ALL",
-        "desc": "-9 + Yandex DNS (all sites)",
-        "args": ["-9",
-                 "--dns-addr","77.88.8.8","--dns-port","1253",
-                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
-    },
-    "All Traffic (Standard)": {
-        "mode": "ALL",
-        "desc": "-9 default (all sites)",
-        "args": ["-9"],
-    },
-    "Discord (Russia — Simple Fake)": {
-        "mode": "DISCORD",
-        "desc": "wrong-seq + wrong-chksum + frag (lite -9)",
-        "args": ["-p","-r","-s","-e","2",
-                 "--wrong-chksum","--wrong-seq",
-                 "--dns-addr","77.88.8.8","--dns-port","1253",
-                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
-    },
-    "Discord (Russia — Auto-TTL)": {
-        "mode": "DISCORD",
-        "desc": "auto-ttl + frag-by-SNI + DNS (alt strategy)",
-        "args": ["-p","-r","-s","-e","2",
-                 "--auto-ttl","1-4-10","--frag-by-sni",
-                 "--dns-addr","77.88.8.8","--dns-port","1253",
-                 "--dnsv6-addr","2a02:6b8::feed:0ff","--dnsv6-port","1253"],
     },
 }
 
 # -- Zapret engine presets --
 ZAPRET_PRESETS = {
-    "Discord (Zapret — recommended)": {
+    "Discord+YouTube (Zapret — recommended)": {
         "engine": "zapret",
         "desc": "fake TLS + split SNI + QUIC fake (best for RU)",
         "args": [
@@ -374,63 +338,36 @@ ZAPRET_PRESETS = {
             "fake_stun": "fake/stun.bin",
         },
     },
-    "Discord (Zapret — Voice Fix)": {
-        "engine": "zapret",
-        "desc": "UDP desync for Voice/RTC (STUN/Discord)",
-        "args": [
-            "--wf-tcp-out=443", "--wf-udp-out=443,50000-65535",
-            "--filter-tcp=443", "--filter-l7=tls",
-            "--payload=tls_client_hello",
-            "--lua-desync=fake:blob=fake_tls:tcp_md5:tcp_seq=-10000",
-            "--lua-desync=multidisorder:pos=1,midsld",
-            "--new",
-            "--filter-udp=443", "--filter-l7=quic",
-            "--payload=quic_initial",
-            "--lua-desync=fake:blob=fake_quic:repeats=6",
-            "--new",
-            "--filter-udp=50000-65535",
-            "--lua-desync=fake:blob=fake_discord:repeats=4",
-        ],
-        "blobs": {
-            "fake_tls": "fake/tls_clienthello_iana_org.bin",
-            "fake_quic": "fake/quic_initial_www_google_com.bin",
-            "fake_discord": "fake/discord-ip-discovery-with-port.bin",
-        },
-    },
-    "All Traffic (Zapret)": {
-        "engine": "zapret",
-        "desc": "HTTP + TLS + QUIC bypass (all sites)",
-        "args": [
-            "--wf-tcp-out=80,443", "--wf-udp-out=443",
-            "--filter-tcp=80", "--filter-l7=http",
-            "--payload=http_req",
-            "--lua-desync=fake:blob=0x00000000000000000000:tcp_md5",
-            "--lua-desync=multisplit:pos=method+2",
-            "--new",
-            "--filter-tcp=443", "--filter-l7=tls",
-            "--payload=tls_client_hello",
-            "--lua-desync=fake:blob=fake_tls:tcp_md5",
-            "--lua-desync=multisplit:pos=1,midsld",
-            "--new",
-            "--filter-udp=443", "--filter-l7=quic",
-            "--payload=quic_initial",
-            "--lua-desync=fake:blob=fake_quic:repeats=6",
-        ],
-        "blobs": {
-            "fake_tls": "fake/tls_clienthello_iana_org.bin",
-            "fake_quic": "fake/quic_initial_www_google_com.bin",
-        },
-    },
     "Custom Lua Script": {
         "engine": "zapret",
         "desc": "user-defined script (edit in settings)",
         "args": [],
         "custom": True,
     },
-    "Discord (Flowseal — SIMPLE FAKE)": {
-        "engine": "flowseal",
-        "desc": "Flowseal v1 — tested on RU ISPs (best compat)",
-        "args": [],
+    # ---- Flowseal 1.9.8b presets (winws.exe v1) ----
+    "Discord+YouTube — SIMPLE FAKE": {
+        "engine": "flowseal", "strategy": "simple_fake",
+        "desc": "fake + fooling=ts (best compat for RU ISPs)",
+    },
+    "Discord+YouTube — SIMPLE FAKE ALT": {
+        "engine": "flowseal", "strategy": "simple_fake_alt",
+        "desc": "fake + fooling=badseq (alt for strict ISPs)",
+    },
+    "Discord+YouTube — Default": {
+        "engine": "flowseal", "strategy": "default",
+        "desc": "multisplit + seqovl=681 (Flowseal default)",
+    },
+    "Discord+YouTube — ALT": {
+        "engine": "flowseal", "strategy": "alt",
+        "desc": "fake+fakedsplit (fakedsplit-pattern=0x00)",
+    },
+    "Discord+YouTube — ALT2": {
+        "engine": "flowseal", "strategy": "alt2",
+        "desc": "multisplit + seqovl=652 + split-pos=2",
+    },
+    "Discord+YouTube — FAKE TLS AUTO": {
+        "engine": "flowseal", "strategy": "fake_tls_auto",
+        "desc": "fake+multidisorder + badseq + rnd,dupsid,sni",
     },
 }
 
@@ -856,7 +793,7 @@ class TunnelWorker(QObject):
             p = list(PRESETS.values())[0]
         engine = p.get("engine", "gdpi")
         if engine == "flowseal":
-            cmd = self._build_flowseal_cmd()
+            cmd = self._build_flowseal_cmd(p)
         elif engine == "zapret":
             cmd = self._build_zapret_cmd(p, custom_args)
         else:
@@ -880,36 +817,261 @@ class TunnelWorker(QObject):
             cmd += preset.get("args", [])
         return cmd
 
-    def _build_flowseal_cmd(self) -> list[str]:
+    def _build_flowseal_cmd(self, preset: dict) -> list[str]:
+        """Build Flowseal winws.exe command with full filter chains from 1.9.8b."""
         d = ZAPRET_V1
         exe = str(d / "winws.exe")
-        bl = str(d / "lists" / "list-general.txt")
-        gl = str(d / "lists" / "list-google.txt")
-        fq = str(d / "fake" / "quic_initial_www_google_com.bin")
-        fd = str(d / "fake" / "quic_initial_dbankcloud_ru.bin")
-        ft = str(d / "fake" / "tls_clienthello_www_google_com.bin")
-        fs = str(d / "fake" / "stun.bin")
-        fm = str(d / "fake" / "tls_clienthello_max_ru.bin")
-        return [exe,
-            "--wf-tcp=80,443", "--wf-udp=443,19294-19344,50000-50100",
-            "--filter-udp=443", f"--hostlist={bl}",
+        # -- list files --
+        bl  = str(d / "lists" / "list-general.txt")
+        gl  = str(d / "lists" / "list-google.txt")
+        el  = str(d / "lists" / "list-exclude.txt")
+        ip  = str(d / "lists" / "ipset-all.txt")
+        ipe = str(d / "lists" / "ipset-exclude.txt")
+        # -- fake files (in zapret-v1 root, not in fake/) --
+        fq  = str(d / "quic_initial_www_google_com.bin")
+        fd  = str(d / "quic_initial_dbankcloud_ru.bin")
+        ft  = str(d / "tls_clienthello_www_google_com.bin")
+        f4  = str(d / "tls_clienthello_4pda_to.bin")
+        fs  = str(d / "stun.bin")
+        fm  = str(d / "tls_clienthello_max_ru.bin")
+
+        strategy = preset.get("strategy", "simple_fake")
+
+        # Common: WinDivert filter + UDP Discord voice chain (same for all)
+        cmd = [exe,
+            "--wf-tcp=80,443,2053,2083,2087,2096,8443",
+            "--wf-udp=443,19294-19344,50000-50100",
+        ]
+        # Chain 1: QUIC UDP 443 with hostlist
+        cmd += [
+            f"--filter-udp=443", f"--hostlist={bl}",
+            f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
             "--dpi-desync=fake", "--dpi-desync-repeats=6",
             f"--dpi-desync-fake-quic={fq}", "--new",
+        ]
+        # Chain 2: Discord Voice UDP (19294-19344, 50000-50100)
+        cmd += [
             "--filter-udp=19294-19344,50000-50100",
             "--filter-l7=discord,stun",
             "--dpi-desync=fake", "--dpi-desync-repeats=6",
             f"--dpi-desync-fake-discord={fd}",
             f"--dpi-desync-fake-stun={fd}", "--new",
-            "--filter-tcp=443", f"--hostlist={gl}",
-            "--dpi-desync=fake", "--dpi-desync-repeats=6",
-            "--dpi-desync-fooling=ts",
-            f"--dpi-desync-fake-tls={ft}", "--new",
-            "--filter-tcp=80,443", f"--hostlist={bl}",
-            "--dpi-desync=fake", "--dpi-desync-repeats=6",
-            "--dpi-desync-fooling=ts",
-            f"--dpi-desync-fake-tls={ft}",
-            f"--dpi-desync-fake-http={fm}",
         ]
+        # Chain 3: discord.media TCP ports
+        if strategy == "default":
+            cmd += [
+                "--filter-tcp=2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=681", "--dpi-desync-split-pos=1",
+                f"--dpi-desync-split-seqovl-pattern={ft}", "--new",
+            ]
+        elif strategy == "alt":
+            cmd += [
+                "--filter-tcp=2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=fake,fakedsplit", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts", "--dpi-desync-fakedsplit-pattern=0x00",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        elif strategy == "alt2":
+            cmd += [
+                "--filter-tcp=2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=652", "--dpi-desync-split-pos=2",
+                f"--dpi-desync-split-seqovl-pattern={ft}", "--new",
+            ]
+        elif strategy == "fake_tls_auto":
+            cmd += [
+                "--filter-tcp=2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=fake,multidisorder",
+                "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
+                "--dpi-desync-fooling=badseq",
+                "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com", "--new",
+            ]
+        elif strategy == "simple_fake_alt":
+            cmd += [
+                "--filter-tcp=2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=badseq", "--dpi-desync-badseq-increment=2",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        else:  # simple_fake
+            cmd += [
+                "--filter-tcp=2053,2083,2087,2096,8443",
+                "--hostlist-domains=discord.media",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        # Chain 4: Google TCP 443
+        if strategy == "default":
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=681", "--dpi-desync-split-pos=1",
+                f"--dpi-desync-split-seqovl-pattern={ft}", "--new",
+            ]
+        elif strategy == "alt":
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
+                "--dpi-desync=fake,fakedsplit", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts", "--dpi-desync-fakedsplit-pattern=0x00",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        elif strategy == "alt2":
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=652", "--dpi-desync-split-pos=2",
+                f"--dpi-desync-split-seqovl-pattern={ft}", "--new",
+            ]
+        elif strategy == "fake_tls_auto":
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
+                "--dpi-desync=fake,multidisorder",
+                "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
+                "--dpi-desync-fooling=badseq",
+                "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com", "--new",
+            ]
+        elif strategy == "simple_fake_alt":
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=badseq", "--dpi-desync-badseq-increment=2",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        else:  # simple_fake
+            cmd += [
+                f"--filter-tcp=443", f"--hostlist={gl}", "--ip-id=zero",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts",
+                f"--dpi-desync-fake-tls={ft}", "--new",
+            ]
+        # Chain 5: General TCP hostlist
+        if strategy == "default":
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=568", "--dpi-desync-split-pos=1",
+                f"--dpi-desync-split-seqovl-pattern={f4}", "--new",
+            ]
+        elif strategy == "alt":
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake,fakedsplit", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts", "--dpi-desync-fakedsplit-pattern=0x00",
+                f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}", "--new",
+            ]
+        elif strategy == "alt2":
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=652", "--dpi-desync-split-pos=2",
+                f"--dpi-desync-split-seqovl-pattern={ft}", "--new",
+            ]
+        elif strategy == "fake_tls_auto":
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake,multidisorder",
+                "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
+                "--dpi-desync-fooling=badseq",
+                "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com",
+                f"--dpi-desync-fake-http={fm}", "--new",
+            ]
+        elif strategy == "simple_fake_alt":
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=badseq", "--dpi-desync-badseq-increment=2",
+                f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}", "--new",
+            ]
+        else:  # simple_fake
+            cmd += [
+                f"--filter-tcp=80,443", f"--hostlist={bl}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts",
+                f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}", "--new",
+            ]
+        # Chain 6: ipset UDP 443
+        cmd += [
+            f"--filter-udp=443", f"--ipset={ip}",
+            f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+            "--dpi-desync=fake",
+            f"--dpi-desync-repeats={'11' if strategy == 'fake_tls_auto' else '6'}",
+            f"--dpi-desync-fake-quic={fq}", "--new",
+        ]
+        # Chain 7: ipset TCP
+        if strategy == "default":
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=568", "--dpi-desync-split-pos=1",
+                f"--dpi-desync-split-seqovl-pattern={f4}",
+            ]
+        elif strategy == "alt":
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake,fakedsplit", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts", "--dpi-desync-fakedsplit-pattern=0x00",
+                f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}",
+            ]
+        elif strategy == "alt2":
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=multisplit",
+                "--dpi-desync-split-seqovl=652", "--dpi-desync-split-pos=2",
+                f"--dpi-desync-split-seqovl-pattern={ft}",
+            ]
+        elif strategy == "fake_tls_auto":
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake,multidisorder",
+                "--dpi-desync-split-pos=1,midsld", "--dpi-desync-repeats=11",
+                "--dpi-desync-fooling=badseq",
+                "--dpi-desync-fake-tls=0x00000000",
+                "--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com",
+                f"--dpi-desync-fake-http={fm}",
+            ]
+        elif strategy == "simple_fake_alt":
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=badseq", "--dpi-desync-badseq-increment=2",
+                f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}",
+            ]
+        else:  # simple_fake
+            cmd += [
+                f"--filter-tcp=80,443,8443", f"--ipset={ip}",
+                f"--hostlist-exclude={el}", f"--ipset-exclude={ipe}",
+                "--dpi-desync=fake", "--dpi-desync-repeats=6",
+                "--dpi-desync-fooling=ts",
+                f"--dpi-desync-fake-tls={fs}", f"--dpi-desync-fake-tls={ft}",
+                f"--dpi-desync-fake-http={fm}",
+            ]
+        return cmd
 
     def _kill_old(self):
         targets = {"goodbyedpi.exe", "winws2.exe", "winws.exe"}
@@ -1926,7 +2088,7 @@ class MainWindow(QMainWindow):
         rc_vl.addWidget(hdiv())
         rc_vl.addWidget(section_label(tr("engine")))
         self._engine_combo = QComboBox()
-        self._engine_combo.addItems(["GoodbyeDPI", "Zapret v2", "Zapret Flowseal"])
+        self._engine_combo.addItems(["GoodbyeDPI", "Zapret v2 (Lua)", "Zapret Flowseal 1.9.8b"])
         self._engine_combo.currentIndexChanged.connect(self._on_engine_change)
         rc_vl.addWidget(self._engine_combo)
         rc_vl.addSpacing(4)
