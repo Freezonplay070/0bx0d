@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.5"
+VERSION  = "4.5.1"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -1096,17 +1096,32 @@ class TunnelWorker(QObject):
 
     def _watch(self):
         t_start = time.monotonic()
+        restart_count = 0
+        max_restarts = 5
         while self._run:
             if not self._proc: break
             if self._proc.poll() is not None:
                 uptime = time.monotonic() - t_start
+                # Drain remaining output before deciding
+                if self._proc.stdout:
+                    for leftover in self._proc.stdout:
+                        txt = leftover.decode("utf-8", "replace").strip()
+                        if txt: self.log.emit(txt)
+                rc = self._proc.returncode
+                self.log.emit(f"⚠ process exited (code {rc}, uptime {uptime:.1f}s)")
                 if self._run and self._ks:
                     if uptime < 5:
                         self.error.emit(
-                            "Process exited in <5s — likely a config error. "
+                            f"Process exited in <5s (code {rc}) — likely a config error. "
                             "Kill switch disabled to prevent loop.")
                         break
-                    self.log.emit("⚡ kill switch triggered, restarting...")
+                    restart_count += 1
+                    if restart_count > max_restarts:
+                        self.error.emit(
+                            f"Kill switch: too many restarts ({max_restarts}). "
+                            "Stopping to prevent infinite loop.")
+                        break
+                    self.log.emit(f"⚡ kill switch triggered, restarting... ({restart_count}/{max_restarts})")
                     time.sleep(1); self._kill_old()
                     try:
                         self._proc = subprocess.Popen(
