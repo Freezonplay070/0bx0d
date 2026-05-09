@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 #  CONSTANTS
 # =====================================================================
 APP_NAME = "0bx0d"
-VERSION  = "4.6.1"
+VERSION  = "4.6.2"
 BIN_DIR  = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "bin"
 ZAPRET_DIR = BIN_DIR / "zapret"
 ZAPRET_V1  = BIN_DIR / "zapret-v1"
@@ -2301,6 +2301,12 @@ class MainWindow(QMainWindow):
         tools_row.addWidget(self._hosts_btn)
         tools_row.addStretch()
         cvl.addLayout(tools_row)
+        tools_row2 = QHBoxLayout(); tools_row2.setSpacing(8)
+        self._reset_drv_btn = Btn("Reset WinDivert / Drivers")
+        self._reset_drv_btn.clicked.connect(self._reset_drivers)
+        tools_row2.addWidget(self._reset_drv_btn)
+        tools_row2.addStretch()
+        cvl.addLayout(tools_row2)
         self._tools_status = QLabel("")
         self._tools_status.setFont(ui_font(10)); self._tools_status.setStyleSheet(f"color:{TEXT3};")
         self._tools_status.setWordWrap(True); cvl.addWidget(self._tools_status)
@@ -2681,6 +2687,45 @@ class MainWindow(QMainWindow):
             except PermissionError:
                 self._tools_status.setText("❌ Run as Administrator to update hosts file")
                 self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+        except Exception as e:
+            self._tools_status.setText(f"❌ {e}")
+            self._tools_status.setStyleSheet(f"color:{ACCENT2};")
+
+    def _reset_drivers(self):
+        """Stop and remove WinDivert/zapret/goodbyedpi services with confirmation."""
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Reset Drivers")
+        msg.setText(
+            "This will stop and remove the following services:\n\n"
+            "  - WinDivert / WinDivert14\n"
+            "  - zapret\n"
+            "  - goodbyedpi\n\n"
+            "Use this if you see 'windivert: error opening filter' "
+            "or if another bypass tool is conflicting.\n\n"
+            "Continue?")
+        msg.setIcon(QMessageBox.Warning)
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setDefaultButton(QMessageBox.No)
+        if msg.exec() != QMessageBox.Yes:
+            return
+        cmds = [
+            "sc stop WinDivert",   "sc delete WinDivert",
+            "sc stop WinDivert14", "sc delete WinDivert14",
+            "sc stop zapret",      "sc delete zapret",
+            "sc stop goodbyedpi",  "sc delete goodbyedpi",
+            "taskkill /F /IM winws.exe",
+            "taskkill /F /IM goodbyedpi.exe",
+        ]
+        script = " & ".join(cmds)
+        try:
+            r = subprocess.run(
+                ["cmd", "/c", script],
+                capture_output=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            self._tools_status.setText(
+                "✅ All bypass services stopped and removed. Restart 0bx0d.")
+            self._tools_status.setStyleSheet(f"color:#4caf50;")
         except Exception as e:
             self._tools_status.setText(f"❌ {e}")
             self._tools_status.setStyleSheet(f"color:{ACCENT2};")
